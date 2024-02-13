@@ -5,7 +5,7 @@
 #'
 #' @return A vector containing up to the first three minutes of heart rate data.
 #' @export
-get_HR <- function(fit_object){
+get_HR <- function(fit_object) {
   HR <- records(fit_object)
   if (all(class(HR) == "list")) {
     HR <- HR[[which.max(sapply(HR, nrow))]]$heart_rate
@@ -24,7 +24,7 @@ get_HR <- function(fit_object){
 #' @return A vector containing up to the first three minutes of heart rate
 #'   variability data.
 #' @export
-get_HRV <- function(fit_object){
+get_HRV <- function(fit_object) {
   HRV <- filter(hrv(fit_object), time < 2)$time
   return(HRV)
 }
@@ -38,7 +38,7 @@ get_HRV <- function(fit_object){
 #' @return A named list containing the full RR data and suspected RR data for
 #'   standing and lying down.
 #' @export
-get_RR <- function(HRV, filter_factor){
+get_RR <- function(HRV, filter_factor) {
   RR <- c(HRV[1])
   for (i in 2:length(HRV)) {
     if (HRV[i - 1] * (1 - filter_factor) < HRV[i] & HRV[i - 1] * (1 + filter_factor) > HRV[i]) {
@@ -58,7 +58,6 @@ get_RR <- function(HRV, filter_factor){
     laying_RR = RR[1:which.max(RR$time > 180) - 1, ],
     standing_RR = RR[which.max(RR$time > 180):nrow(RR), ]
   ))
-
 }
 
 #' Calculate HRV summaries for an orthostatic test
@@ -75,9 +74,9 @@ get_RR <- function(HRV, filter_factor){
 #' @importFrom dplyr filter
 #' @importFrom clock as_date add_days get_hour
 hrv_metrics <- function(fit_object, filter_factor = 0.25) {
-  HR = get_HR(fit_object = fit_object)
-  HRV = get_HRV(fit_object = fit_object)
-  RR = get_RR(HRV = HRV, filter_factor)
+  HR <- get_HR(fit_object = fit_object)
+  HRV <- get_HRV(fit_object = fit_object)
+  RR <- get_RR(HRV = HRV, filter_factor)
 
   metrics <- list(
     laying_SDNN = round(sd(RR$laying_RR$RR_ms), digits = 2),
@@ -92,8 +91,8 @@ hrv_metrics <- function(fit_object, filter_factor = 0.25) {
   metrics$standing_time_to_mean_hr <- min(
     which(HR <= metrics$standing_mean_hr)[
       which(HR <= metrics$standing_mean_hr) > which.max(HR)
-      ]
-    ) -
+    ]
+  ) -
     which.max(HR)
 
   metrics$morning <- ifelse(
@@ -124,19 +123,20 @@ hrv_metrics <- function(fit_object, filter_factor = 0.25) {
 #'
 #' @importFrom FITfileR readFitFile
 #' @importFrom dplyr '%>%'
-#' @importFrom ggplot2 ggplot geom_line geom_vline scale_x_continuous annotate aes xlab theme_bw
+#' @importFrom ggplot2 ggplot geom_line geom_vline scale_x_continuous annotate aes xlab theme_bw ggtitle
 hrv_plot <- function(fit_file_path, base = "RR", filter_factor = 0.25) {
-  fit_object = readFitFile(fit_file_path)
+  fit_object <- readFitFile(fit_file_path)
 
-  metrics <- hrv_metrics(fit_object = fit_object,
-                         filter_factor = filter_factor)
+  metrics <- hrv_metrics(
+    fit_object = fit_object,
+    filter_factor = filter_factor
+  )
 
-  HR = get_HR(fit_object = fit_object)
-  RR = get_RR(HRV = get_HRV(fit_object = fit_object), filter_factor = filter_factor)
-  standing_RR = RR$standing_RR
-  laying_RR = RR$laying_RR
-  RR = RR$RR
-  HR = get_HR(fit_object = fit_object)
+  HR <- get_HR(fit_object = fit_object)
+  RR <- get_RR(HRV = get_HRV(fit_object = fit_object), filter_factor = filter_factor)
+  standing_RR <- RR$standing_RR
+  laying_RR <- RR$laying_RR
+  RR <- RR$RR
 
   if (base == "RR") {
     p <- RR %>%
@@ -168,42 +168,52 @@ hrv_plot <- function(fit_file_path, base = "RR", filter_factor = 0.25) {
         color = "red", x = 280, y = mean(laying_RR$RR) + 0.02,
         label = paste0("mean HR(bpm): ", metrics$standing_mean_hr)
       ) +
+      annotate("text",
+        color = "red", x = 280, y = mean(laying_RR$RR) - 0.02,
+        label = paste0("time to mean HR(s): ", metrics$standing_time_to_mean_hr)
+      ) +
       annotate("text", color = "red", x = 218, y = min(RR$RR), label = paste0("max HR(bpm): ", max(HR))) +
       xlab("Time (s)") +
-      theme_bw()
+      ggtitle(metrics$morning) +
+      theme_bw(base_size = 12)
   } else if (base == "HR") {
     p <- data.frame(HR = get_HR(fit_object = fit_object)) %>%
-      ggplot(aes(y = HR, x = 1:360)) +
+      ggplot(aes(y = HR, x = seq_along(HR))) +
       geom_line() +
       geom_vline(xintercept = 180, linetype = "dashed", color = "red") +
       scale_x_continuous(limits = c(0, 360), breaks = c(0, 60, 120, 180, 240, 300, 360), expand = c(0, 0)) +
       annotate("text",
-        color = "red", x = 80, y = mean(HR[180:360]) + 15,
-        label = paste0("SDNN(ms): ", round(sd(laying_RR$RR_ms), digits = 2))
+        color = "red", x = 80, y = mean(HR[180:length(HR)]) + 15,
+        label = paste0("SDNN(ms): ", metrics$laying_SDNN)
       ) +
       annotate("text",
-        color = "red", x = 80, y = mean(HR[180:360]) + 11,
-        label = paste0("rMSSD(ms): ", round(sqrt(mean(laying_RR$successive_differences^2)), digits = 2))
+        color = "red", x = 80, y = mean(HR[180:length(HR)]) + 11,
+        label = paste0("rMSSD(ms): ", metrics$laying_rMSSD)
       ) +
       annotate("text",
-        color = "red", x = 80, y = mean(HR[180:360]) + 7,
-        label = paste0("mean HR(bpm): ", round(mean(HR[1:180]), digits = 2))
+        color = "red", x = 80, y = mean(HR[180:length(HR)]) + 7,
+        label = paste0("mean HR(bpm): ", metrics$laying_mean_hr)
       ) +
       annotate("text",
         color = "red", x = 280, y = mean(HR[1:180]) + 5,
-        label = paste0("SDNN(ms): ", round(sd(standing_RR$RR_ms), digits = 2))
+        label = paste0("SDNN(ms): ", metrics$standing_SDNN)
       ) +
       annotate("text",
         color = "red", x = 280, y = mean(HR[1:180]) + 1,
-        label = paste0("rMSSD(ms): ", round(sqrt(mean(standing_RR$successive_differences^2)), digits = 2))
+        label = paste0("rMSSD(ms): ", metrics$standing_rMSSD)
       ) +
       annotate("text",
         color = "red", x = 280, y = mean(HR[1:180]) - 3,
-        label = paste0("mean HR(bpm): ", round(mean(HR[181:360]), digits = 2))
+        label = paste0("mean HR(bpm): ", metrics$standing_mean_hr)
       ) +
-      annotate("text", color = "red", x = 218, y = max(HR[10:360]), label = paste0("max HR(bpm): ", max(HR))) +
+      annotate("text",
+        color = "red", x = 280, y = mean(HR[1:180]) - 7,
+        label = paste0("time to mean HR(s): ", metrics$standing_time_to_mean_hr)
+      ) +
+      annotate("text", color = "red", x = 218, y = max(HR[10:length(HR)]), label = paste0("max HR(bpm): ", max(HR))) +
       xlab("Time (s)") +
-      theme_bw()
+      ggtitle(metrics$morning) +
+      theme_bw(base_size = 12)
   } else {
     stop("No proper base given. Must be 'RR' or 'HR'")
   }
@@ -245,9 +255,11 @@ hrv_trend_plot <- function(fit_dir) {
     ggplot(aes(x = date, y = value, color = position)) +
     geom_point() +
     geom_line() +
-    geom_hline(data = overall_means,
-               aes(yintercept = mean, color = position),
-               linetype = "dotted") +
+    geom_hline(
+      data = overall_means,
+      aes(yintercept = mean, color = position),
+      linetype = "dotted"
+    ) +
     facet_grid(metric ~ morning, scales = "free_y") +
     theme_bw()
 }
