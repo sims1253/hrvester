@@ -1,7 +1,7 @@
 Package: ostdashr
 Type: Package
 Title: Dashboard for orthostatic test data
-Version: 0.0.2.9000
+Version: 0.0.3.9000
 Date: 2024-02-12
 Authors@R:
     c(person("Maximilian", "Scholz", email = "research.scholz@mailbox.org",
@@ -19,6 +19,8 @@ Imports:
     stats
 Suggests:
     testthat (>= 3.1.0)
+Remotes:
+    grimbough/fitFileR
 RoxygenNote: 7.3.1
 NeedsCompilation: no
 URL: https://github.com/sims1253/ost_dashboard
