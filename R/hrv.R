@@ -86,7 +86,8 @@ hrv_metrics <- function(fit_object, filter_factor = 0.25) {
     standing_rMSSD = round(sqrt(mean(RR$standing_RR$successive_differences^2))),
     standing_mean_hr = round(mean(HR[181:length(HR)], na.rm = TRUE), digits = 2),
     standing_max_hr = max(HR),
-    date = as_date(getMessagesByType(fit_object, "session")$timestamp)
+    date = as_date(getMessagesByType(fit_object, "session")$timestamp),
+    week = as.numeric(strftime(getMessagesByType(fit_object, "session")$timestamp,format="%W"))
   )
   metrics$standing_time_to_mean_hr <- min(
     which(HR <= metrics$standing_mean_hr)[
@@ -241,7 +242,7 @@ hrv_trend_plot <- function(fit_dir) {
     )
   ) %>%
     tidyr::pivot_longer(
-      !c(date, morning),
+      !c(date, week, morning),
       names_to = c("position", "metric"),
       names_pattern = "(.+?)_(.*)",
       values_to = "value"
@@ -251,10 +252,24 @@ hrv_trend_plot <- function(fit_dir) {
     group_by(across(c("morning", "position", "metric"))) %>%
     summarise(mean = mean(value))
 
+  weekly_means <- as.data.frame(metrics) %>%
+    group_by(across(c("morning", "position", "metric", "week"))) %>%
+    summarise(mean = mean(value))
+
+  metrics$weekly_mean <- rep(0, nrow(metrics))
+  for (i in 1:nrow(metrics)) {
+    metrics$weekly_mean[[i]] <- filter(weekly_means,
+                                  morning==metrics$morning[[i]],
+                                  position == metrics$position[[i]],
+                                  metric == metrics$metric[[i]],
+                                  week == metrics$week[[i]])$mean
+  }
+
   metrics %>%
     ggplot(aes(x = date, y = value, color = position)) +
     geom_point() +
     geom_line() +
+    geom_line(aes(y = weekly_mean), linetype = "dashed") +
     geom_hline(
       data = overall_means,
       aes(yintercept = mean, color = position),
