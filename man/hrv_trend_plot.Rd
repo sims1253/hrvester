@@ -4,7 +4,7 @@
 \alias{hrv_trend_plot}
 \title{Trend plots of HRV summaries for orthostatic tests}
 \usage{
-hrv_trend_plot(fit_dir)
+hrv_trend_plot(fit_dir, just_rssme = FALSE)
 }
 \arguments{
 \item{fit_dir}{Path of directory containing fit files.}

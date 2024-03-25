@@ -87,7 +87,7 @@ hrv_metrics <- function(fit_object, filter_factor = 0.25) {
     standing_mean_hr = round(mean(HR[181:length(HR)], na.rm = TRUE), digits = 2),
     standing_max_hr = max(HR),
     date = as_date(getMessagesByType(fit_object, "session")$timestamp),
-    week = as.numeric(strftime(getMessagesByType(fit_object, "session")$timestamp,format="%W"))
+    week = as.numeric(strftime(getMessagesByType(fit_object, "session")$timestamp, format = "%W"))
   )
   metrics$standing_time_to_mean_hr <- min(
     which(HR <= metrics$standing_mean_hr)[
@@ -229,7 +229,7 @@ hrv_plot <- function(fit_file_path, base = "RR", filter_factor = 0.25) {
 #' @export
 #' @importFrom dplyr '%>%' group_by summarise filter across bind_rows as_tibble
 #' @importFrom ggplot2 ggplot geom_point geom_line geom_hline facet_grid theme_bw aes
-hrv_trend_plot <- function(fit_dir) {
+hrv_trend_plot <- function(fit_dir, just_rssme = FALSE) {
   tests <- list.files(fit_dir, pattern = ".fit", full.names = TRUE)
 
   metrics <- as_tibble(
@@ -258,23 +258,49 @@ hrv_trend_plot <- function(fit_dir) {
 
   metrics$weekly_mean <- rep(0, nrow(metrics))
   for (i in 1:nrow(metrics)) {
-    metrics$weekly_mean[[i]] <- filter(weekly_means,
-                                  morning==metrics$morning[[i]],
-                                  position == metrics$position[[i]],
-                                  metric == metrics$metric[[i]],
-                                  week == metrics$week[[i]])$mean
+    metrics$weekly_mean[[i]] <- filter(
+      weekly_means,
+      morning == metrics$morning[[i]],
+      position == metrics$position[[i]],
+      metric == metrics$metric[[i]],
+      week == metrics$week[[i]]
+    )$mean
   }
 
-  metrics %>%
-    ggplot(aes(x = date, y = value, color = position)) +
-    geom_point() +
-    geom_line() +
-    geom_line(aes(y = weekly_mean), linetype = "dashed") +
-    geom_hline(
-      data = overall_means,
-      aes(yintercept = mean, color = position),
-      linetype = "dotted"
-    ) +
-    facet_grid(metric ~ morning, scales = "free_y") +
-    theme_bw()
+  if (just_rssme) {
+    metrics %>%
+      filter(
+        metric == "rMSSD",
+        morning == "Morning"
+      ) %>%
+      ggplot(aes(x = date, y = value, color = position)) +
+      geom_point() +
+      geom_line() +
+      geom_line(aes(y = weekly_mean), linetype = "dashed") +
+      geom_hline(
+        data = filter(
+          overall_means,
+          morning == "Morning",
+          metric == "rMSSD"
+        ),
+        aes(yintercept = mean, color = position),
+        linetype = "dotted"
+      ) +
+      ylab("rMSSD") +
+      # facet_grid(metric ~ morning, scales = "free_y") +
+      theme_bw()
+  } else {
+    metrics %>%
+      ggplot(aes(x = date, y = value, color = position)) +
+      geom_point() +
+      geom_line() +
+      geom_line(aes(y = weekly_mean), linetype = "dashed") +
+      geom_hline(
+        data = overall_means,
+        aes(yintercept = mean, color = position),
+        linetype = "dotted"
+      ) +
+      facet_grid(metric ~ morning, scales = "free_y") +
+      theme_bw()
+  }
 }
