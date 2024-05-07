@@ -6,7 +6,7 @@
 #' @return A vector containing up to the first three minutes of heart rate data.
 #' @export
 get_HR <- function(fit_object) {
-  HR <- records(fit_object)
+  HR <- FITfileR::records(fit_object)
   if (all(class(HR) == "list")) {
     HR <- HR[[which.max(sapply(HR, nrow))]]$heart_rate
     HR <- HR[1:min(360, length(HR))]
@@ -25,7 +25,7 @@ get_HR <- function(fit_object) {
 #'   variability data.
 #' @export
 get_HRV <- function(fit_object) {
-  HRV <- filter(hrv(fit_object), time < 2)$time
+  HRV <- dplyr::filter(FITfileR::hrv(fit_object), time < 2)$time
   return(HRV)
 }
 
@@ -81,20 +81,21 @@ hrv_metrics <- function(fit_object, filter_factor = 0.25) {
   metrics <- list(
     laying_SDNN = round(sd(RR$laying_RR$RR_ms), digits = 2),
     laying_rMSSD = round(sqrt(mean(RR$laying_RR$successive_differences^2))),
-    laying_mean_hr = round(mean(HR[1:180], na.rm = TRUE), digits = 2),
+    laying_mean_hr = round(mean(HR[30:150], na.rm = TRUE), digits = 2),
+    laying_resting_hr = round(mean(HR[120:170], na.rm = TRUE), digits = 0),
     standing_SDNN = round(sd(RR$standing_RR$RR_ms), digits = 2),
     standing_rMSSD = round(sqrt(mean(RR$standing_RR$successive_differences^2))),
-    standing_mean_hr = round(mean(HR[181:length(HR)], na.rm = TRUE), digits = 2),
-    standing_max_hr = max(HR),
-    date = as_date(getMessagesByType(fit_object, "session")$timestamp),
+    standing_mean_hr = round(mean(HR[220:330], na.rm = TRUE), digits = 2),
+    standing_max_hr = max(HR[181:220]),
+    date = clock::as_date(getMessagesByType(fit_object, "session")$timestamp),
     week = as.numeric(strftime(getMessagesByType(fit_object, "session")$timestamp, format = "%W"))
   )
   metrics$standing_time_to_mean_hr <- min(
     which(HR <= metrics$standing_mean_hr)[
-      which(HR <= metrics$standing_mean_hr) > which.max(HR)
+      which(HR <= metrics$standing_mean_hr) > (180 + which.max(HR[181:220]))
     ]
   ) -
-    which.max(HR)
+    (180 + which.max(HR[181:220]))
 
   metrics$morning <- ifelse(
     (get_hour(getMessagesByType(fit_object, "session")$timestamp) > 4) &
@@ -155,7 +156,7 @@ hrv_plot <- function(fit_file_path, base = "RR", filter_factor = 0.25) {
       ) +
       annotate("text",
         color = "red", x = 80, y = mean(standing_RR$RR) - 0.08,
-        label = paste0("mean HR(bpm): ", metrics$laying_mean_hr)
+        label = paste0("resting HR(bpm): ", metrics$laying_resting_hr)
       ) +
       annotate("text",
         color = "red", x = 280, y = mean(laying_RR$RR) + 0.1,
@@ -250,7 +251,13 @@ hrv_trend_plot <- function(fit_dir, just_rssme = FALSE) {
 
   overall_means <- as.data.frame(metrics) %>%
     group_by(across(c("morning", "position", "metric"))) %>%
-    summarise(mean = mean(value))
+    summarise(mean = mean(value)) %>%
+    dplyr::mutate(
+      position = dplyr::case_when(
+        metric == "resting_hr" ~ "resting_hr",
+        .default = position
+      )
+    )
 
   weekly_means <- as.data.frame(metrics) %>%
     group_by(across(c("morning", "position", "metric", "week"))) %>%
@@ -269,9 +276,15 @@ hrv_trend_plot <- function(fit_dir, just_rssme = FALSE) {
 
   if (just_rssme) {
     metrics %>%
-      filter(
-        metric == "rMSSD",
+      dplyr::filter(
+        metric == "rMSSD" | metric == "resting_hr",
         morning == "Morning"
+      ) %>%
+      dplyr::mutate(
+        position = dplyr::case_when(
+          metric == "resting_hr" ~ "resting_hr",
+          .default = position
+        )
       ) %>%
       ggplot(aes(x = date, y = value, color = position)) +
       geom_point() +
@@ -281,7 +294,7 @@ hrv_trend_plot <- function(fit_dir, just_rssme = FALSE) {
         data = filter(
           overall_means,
           morning == "Morning",
-          metric == "rMSSD"
+          metric == "rMSSD" | metric == "resting_hr"
         ),
         aes(yintercept = mean, color = position),
         linetype = "dotted"
