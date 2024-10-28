@@ -1,26 +1,29 @@
 Package: ostdashr
 Type: Package
 Title: Dashboard for orthostatic test data
-Version: 0.0.5.9000
-Date: 2024-02-12
+Version: 0.1.0.9000
+Date: 2024-10-28
 Authors@R:
-    c(person("Maximilian", "Scholz", email = "research.scholz@mailbox.org",
-             role = c("aut", "cre")))
-Maintainer: Maximilian Scholz <research.scholz@mailbox.org>
+    person("Maximilian", "Scholz", email = "dev.scholz@mailbox.org",
+           role = c("aut", "cre"))
+Maintainer: Maximilian Scholz <dev.scholz@mailbox.org>
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports:
-    FITfileR,
     dplyr,
-    clock,
     tidyr,
+    tibble,
     ggplot2,
-    stats
-Suggests:
-    testthat (>= 3.1.0)
+    furrr,
+    FITfileR
 Remotes:
     grimbough/fitFileR
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.1
 NeedsCompilation: no
 URL: https://github.com/sims1253/ost_dashboard
@@ -28,4 +31,3 @@ BugReports: https://github.com/sims1253/ost_dashboard/issues
 Description: An (eventually) interactive dashboard application to analyze .fit
     files of orthostatic tests.
 Config/testthat/parallel: true
-Config/testthat/edition: 3
