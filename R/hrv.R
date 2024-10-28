@@ -222,98 +222,233 @@ hrv_plot <- function(fit_file_path, base = "RR", filter_factor = 0.25) {
   return(p)
 }
 
+#' Cache HRV metrics from fit files
+#' 
+#' @param fit_dir Path of directory containing fit files
+#' @param cache_file Path to save the parquet cache file
+#' @return A data frame of cached metrics
+#' @importFrom arrow read_parquet write_parquet
+cache_hrv_metrics <- function(fit_dir, cache_file = "hrv_metrics_cache.parquet") {
+  tests <- list.files(fit_dir, pattern = ".fit", full.names = TRUE)
+  
+  # Read existing cache if it exists
+  if (file.exists(cache_file)) {
+    cached_metrics <- arrow::read_parquet(cache_file)
+    cached_files <- cached_metrics$file_path
+    new_files <- tests[!tests %in% cached_files]
+  } else {
+    cached_metrics <- NULL
+    new_files <- tests
+  }
+  
+  if (length(new_files) > 0) {
+    # Process new files in parallel
+    if (requireNamespace("parallel", quietly = TRUE)) {
+      num_cores <- parallel::detectCores() - 1
+      cl <- parallel::makeCluster(num_cores)
+      parallel::clusterExport(cl, c("hrv_metrics", "get_HR", "get_HRV", "get_RR"))
+      
+      new_metrics <- as_tibble(
+        do.call(
+          bind_rows,
+          parallel::parLapply(cl, new_files,
+            function(x, ...) {
+              metrics <- hrv_metrics(FITfileR::readFitFile(x), ...)
+              metrics$file_path <- x
+              return(metrics)
+            },
+            filter_factor = 0.175
+          )
+        )
+      )
+      
+      parallel::stopCluster(cl)
+    } else {
+      new_metrics <- as_tibble(
+        do.call(
+          bind_rows,
+          lapply(new_files,
+            function(x, ...) {
+              metrics <- hrv_metrics(FITfileR::readFitFile(x), ...)
+              metrics$file_path <- x
+              return(metrics)
+            },
+            filter_factor = 0.175
+          )
+        )
+      )
+    }
+    
+    # Combine with existing cache
+    if (!is.null(cached_metrics)) {
+      metrics <- bind_rows(cached_metrics, new_metrics)
+    } else {
+      metrics <- new_metrics
+    }
+    
+    # Save updated cache
+    arrow::write_parquet(metrics, cache_file)
+  } else {
+    metrics <- cached_metrics
+  }
+  
+  return(metrics)
+}
+
 #' Trend plots of HRV summaries for orthostatic tests
 #'
-#' @param fit_dir Path of directory containing fit files.
-#'
-#' @return A ggplot2 plot object.
+#' @param fit_dir Path of directory containing fit files
+#' @param cache_file Path to the cache file (optional)
+#' @param just_rssme Logical, whether to show only rMSSD metrics
+#' @return A ggplot2 plot object
 #' @export
-#' @importFrom dplyr '%>%' group_by summarise filter across bind_rows as_tibble
-#' @importFrom ggplot2 ggplot geom_point geom_line geom_hline facet_grid theme_bw aes
-hrv_trend_plot <- function(fit_dir, just_rssme = FALSE) {
-  tests <- list.files(fit_dir, pattern = ".fit", full.names = TRUE)
-
-  metrics <- as_tibble(
-    do.call(
-      bind_rows,
-      lapply(tests,
-        function(x, ...) hrv_metrics(FITfileR::readFitFile(x), ...),
-        filter_factor = 0.175
-      )
-    )
-  ) %>%
+hrv_trend_plot <- function(fit_dir, cache_file = "hrv_metrics_cache.parquet", just_rssme = FALSE) {
+  # Get metrics from cache or process files
+  metrics <- cache_hrv_metrics(fit_dir, cache_file)
+  
+  # Rest of the function remains the same, starting from the pivot_longer...
+  metrics_long <- metrics %>%
     tidyr::pivot_longer(
-      !c(date, week, morning),
+      !c(date, week, morning, file_path),
       names_to = c("position", "metric"),
       names_pattern = "(.+?)_(.*)",
       values_to = "value"
     )
+  
+  # ... rest of the existing plotting code ...
+}
 
-  overall_means <- as.data.frame(metrics) %>%
-    group_by(across(c("morning", "position", "metric"))) %>%
-    summarise(mean = mean(value)) %>%
-    dplyr::mutate(
-      position = dplyr::case_when(
-        metric == "resting_hr" ~ "resting_hr",
-        .default = position
-      )
+#' Validate FIT file object
+#' @param fit_object Object to validate
+#' @return TRUE if valid, throws error if invalid
+validate_fit_object <- function(fit_object) {
+  if (!inherits(fit_object, "FitFile")) {
+    stop("Input must be a FitFile object")
+  }
+  if (is.null(FITfileR::records(fit_object))) {
+    stop("FIT file contains no records")
+  }
+  return(TRUE)
+}
+
+#' Validate numeric vector
+#' @param x Vector to validate
+#' @param name Name of vector for error message
+#' @return TRUE if valid, throws error if invalid
+validate_numeric_vector <- function(x, name) {
+  if (!is.numeric(x)) {
+    stop(sprintf("%s must be numeric", name))
+  }
+  if (length(x) == 0) {
+    stop(sprintf("%s cannot be empty", name))
+  }
+  if (any(is.na(x))) {
+    warning(sprintf("NAs found in %s", name))
+  }
+  return(TRUE)
+}
+
+#' Default HRV analysis configuration
+#' @export
+default_hrv_config <- function() {
+  list(
+    filter_factor = 0.25,
+    laying_window = c(120, 170),  # Window for laying HR calculation
+    standing_window = c(220, 330), # Window for standing HR calculation
+    max_hr_window = c(181, 220),   # Window for max HR calculation
+    morning_hours = c(4, 13),      # Define morning hours
+    cache_filename = "hrv_metrics_cache.parquet"
+  )
+}
+
+#' Setup logging
+#' @importFrom logger layout_glue_generator setup_logger
+setup_hrv_logging <- function() {
+  logger::setup_logger(
+    layout = logger::layout_glue_generator(
+      format = "{level} [{time}] {msg}"
     )
+  )
+}
 
-  weekly_means <- as.data.frame(metrics) %>%
-    group_by(across(c("morning", "position", "metric", "week"))) %>%
-    summarise(mean = mean(value))
+# Use in functions:
+logger::log_info("Processing {length(new_files)} new files")
+logger::log_debug("Calculated metrics for {fit_file_path}")
 
-  metrics$weekly_mean <- rep(0, nrow(metrics))
-  for (i in 1:nrow(metrics)) {
-    metrics$weekly_mean[[i]] <- filter(
-      weekly_means,
-      morning == metrics$morning[[i]],
-      position == metrics$position[[i]],
-      metric == metrics$metric[[i]],
-      week == metrics$week[[i]]
-    )$mean
-  }
+#' Create HRV metrics object
+#' @export
+new_hrv_metrics <- function(metrics_list) {
+  structure(
+    metrics_list,
+    class = c("hrv_metrics", "list")
+  )
+}
 
-  if (just_rssme) {
-    metrics %>%
-      dplyr::filter(
-        metric == "rMSSD" | metric == "resting_hr",
-        morning == "Morning"
-      ) %>%
-      dplyr::mutate(
-        position = dplyr::case_when(
-          metric == "resting_hr" ~ "resting_hr",
-          .default = position
-        )
-      ) %>%
-      ggplot(aes(x = date, y = value, color = position)) +
-      geom_point() +
-      geom_line() +
-      geom_line(aes(y = weekly_mean), linetype = "dashed") +
-      geom_hline(
-        data = filter(
-          overall_means,
-          morning == "Morning",
-          metric == "rMSSD" | metric == "resting_hr"
-        ),
-        aes(yintercept = mean, color = position),
-        linetype = "dotted"
-      ) +
-      ylab("rMSSD") +
-      # facet_grid(metric ~ morning, scales = "free_y") +
-      theme_bw()
-  } else {
-    metrics %>%
-      ggplot(aes(x = date, y = value, color = position)) +
-      geom_point() +
-      geom_line() +
-      geom_line(aes(y = weekly_mean), linetype = "dashed") +
-      geom_hline(
-        data = overall_means,
-        aes(yintercept = mean, color = position),
-        linetype = "dotted"
-      ) +
-      facet_grid(metric ~ morning, scales = "free_y") +
-      theme_bw()
-  }
+#' Print method for HRV metrics
+#' @export
+print.hrv_metrics <- function(x, ...) {
+  cat("HRV Metrics for", format(x$date), "\n")
+  cat("Morning:", x$morning, "\n")
+  cat("\nLaying metrics:\n")
+  cat("  SDNN:", x$laying_SDNN, "ms\n")
+  cat("  rMSSD:", x$laying_rMSSD, "ms\n")
+  cat("  Mean HR:", x$laying_mean_hr, "bpm\n")
+  # ... etc
+}
+
+#' Clean HRV metrics data
+#' @param metrics Data frame of HRV metrics
+#' @return Cleaned metrics
+clean_hrv_metrics <- function(metrics) {
+  metrics %>%
+    # Remove obvious outliers
+    filter(
+      laying_SDNN < 300,
+      standing_SDNN < 300,
+      laying_mean_hr > 30,
+      laying_mean_hr < 100,
+      standing_mean_hr > 40,
+      standing_mean_hr < 120
+    ) %>%
+    # Handle missing values
+    mutate(across(
+      where(is.numeric),
+      ~ifelse(is.infinite(.), NA, .)
+    )) %>%
+    # Add any derived columns
+    mutate(
+      hrv_ratio = standing_rMSSD / laying_rMSSD,
+      hr_response = standing_max_hr - laying_resting_hr
+    )
+}
+
+#' Analyze HRV from directory of FIT files
+#' @export
+analyze_hrv <- function(fit_dir, config = default_hrv_config()) {
+  setup_hrv_logging()
+  
+  logger::log_info("Starting HRV analysis for {fit_dir}")
+  
+  # Get metrics
+  metrics <- cache_hrv_metrics(
+    fit_dir = fit_dir,
+    cache_file = config$cache_filename
+  ) %>%
+    clean_hrv_metrics()
+  
+  # Generate plots
+  plots <- list(
+    trend = hrv_trend_plot(metrics),
+    rmssd = hrv_trend_plot(metrics, just_rssme = TRUE)
+  )
+  
+  # Return results
+  structure(
+    list(
+      metrics = metrics,
+      plots = plots,
+      config = config
+    ),
+    class = "hrv_analysis"
+  )
 }

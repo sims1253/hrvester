@@ -16,7 +16,8 @@ Imports:
     clock,
     tidyr,
     ggplot2,
-    stats
+    stats,
+    arrow
 Suggests:
     testthat (>= 3.1.0)
 Remotes:
