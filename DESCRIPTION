@@ -1,19 +1,21 @@
 Package: hrvtools
 Type: Package
 Title: Simple Heart Rate Variability Analysis Tools
-Version: 0.1.0
-Date: 2024-02-12
+Version: 0.2.0
+Date: 2024-10-28
 Authors@R:
-    person("Your", "Name", email = "your.email@example.com",
+    person("Maximilian", "Scholz", email = "dev.scholz@mailbox.org",
            role = c("aut", "cre"))
-Maintainer: Your Name <your.email@example.com>
+Maintainer: Maximilian Scholz <dev.scholz@mailbox.org>
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports:
     dplyr,
+    tidyr,
     ggplot2,
     arrow,
+    furrr,
     FITfileR
 Suggests:
     testthat (>= 3.0.0),
@@ -22,9 +24,10 @@ Suggests:
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.1
 NeedsCompilation: no
 URL: https://github.com/sims1253/hrvtools
 BugReports: https://github.com/sims1253/hrvtools/issues
-Description: Provides tools for analyzing Heart Rate Variability (HRV) from FIT files.
-    Includes functions for calculating HRV metrics, caching results, and visualizing trends.
+Description: Analyzes Heart Rate Variability (HRV) from FIT files, focusing on
+    orthostatic test measurements (laying to standing). Provides tools for
+    processing files, caching results, and visualizing trends.
