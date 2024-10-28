@@ -1,7 +1,7 @@
-Package: hrvtools
+Package: ostdashr
 Type: Package
-Title: Simple Heart Rate Variability Analysis Tools
-Version: 0.2.0
+Title: Dashboard for orthostatic test data
+Version: 0.1.0.9000
 Date: 2024-10-28
 Authors@R:
     person("Maximilian", "Scholz", email = "dev.scholz@mailbox.org",
@@ -13,21 +13,21 @@ LazyData: true
 Imports:
     dplyr,
     tidyr,
+    tibble,
     ggplot2,
-    arrow,
     furrr,
     FITfileR
+Remotes:
+    grimbough/fitFileR
 Suggests:
-    testthat (>= 3.0.0),
-    knitr,
-    rmarkdown
+    testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.1
 NeedsCompilation: no
-URL: https://github.com/sims1253/hrvtools
-BugReports: https://github.com/sims1253/hrvtools/issues
-Description: Analyzes Heart Rate Variability (HRV) from FIT files, focusing on
-    orthostatic test measurements (laying to standing). Provides tools for
-    processing files, caching results, and visualizing trends.
+URL: https://github.com/sims1253/ost_dashboard
+BugReports: https://github.com/sims1253/ost_dashboard/issues
+Description: An (eventually) interactive dashboard application to analyze .fit
+    files of orthostatic tests.
+Config/testthat/parallel: true
