@@ -1,3 +1,24 @@
+cache_definition <- function(){
+  tibble::tibble(
+    source_file = character(),
+    date = character(),
+    week = numeric(),
+    time_of_day = character(),
+    laying_rmssd = numeric(),
+    laying_sdnn = numeric(),
+    laying_hr = numeric(),
+    laying_resting_hr = numeric(),
+    standing_rmssd = numeric(),
+    standing_sdnn = numeric(),
+    standing_hr = numeric(),
+    standing_max_hr = numeric(),
+    package_version = character(),
+    RR_filter = numeric(),
+    activity = character()
+  )
+}
+
+
 #' Process directory of FIT files with caching
 #'
 #' @param dir_path Directory containing FIT files
@@ -35,22 +56,7 @@ process_fit_directory <- function(
     file.exists(cache_file) & !clear_cache) {
     read.csv2(cache_file)
   } else {
-    tibble::tibble(
-      source_file = character(),
-      date = character(),
-      week = numeric(),
-      time_of_day = character(),
-      laying_rmssd = numeric(),
-      laying_sdnn = numeric(),
-      laying_hr = numeric(),
-      laying_resting_hr = numeric(),
-      standing_rmssd = numeric(),
-      standing_sdnn = numeric(),
-      standing_hr = numeric(),
-      standing_max_hr = numeric(),
-      package_version = character(),
-      RR_filter = numeric()
-    )
+    cache_definition()
   }
 
   # Find new files to process
@@ -60,20 +66,29 @@ process_fit_directory <- function(
       RR_filter != filter_factor) %>%
     dplyr::pull(source_file)
 
-  if (length(outdated_entries) > 0) {
+  if (length(new_files) > 0) {
     message(
-      sprintf("Reprocessing %d entries due to package updates or changed filter settings", length(outdated_entries))
+      sprintf("Reprocessing %d new files", length(new_files))
     )
   }
+  if (length(outdated_entries) > 0) {
+    message(
+      sprintf("Reprocessing %d files due to package updates or changed filter_factor", length(outdated_entries))
+    )
+  }
+
 
   if (length(new_files) > 0 || length(outdated_entries) > 0) {
     # Process new and outdated files
     files_to_process <- unique(c(new_files, outdated_entries))
+    p = progressr::progressor(along = files_to_process)
     new_data <- furrr::future_map_dfr(
       files_to_process,
-      process_fit_file,
-      filter_factor = filter_factor,
-      .progress = TRUE
+      function(file_path) {
+        result = process_fit_file(file_path, filter_factor = filter_factor)
+        p()
+        return(result)
+      }
     ) %>%
       dplyr::filter(!is.null(.))
 
@@ -90,7 +105,7 @@ process_fit_directory <- function(
 
       # Write to temporary file first
       temp_file <- tempfile(fileext = ".csv")
-      write.csv2(all_data, file = temp_file)
+      write.csv2(all_data, file = temp_file, row.names = FALSE)
 
       # Then move to final location
       file.copy(temp_file, cache_file, overwrite = TRUE)

@@ -122,7 +122,7 @@ hrv_plot <- function(file_path, base = "HR", filter_factor = 0.175) {
 #' @importFrom dplyr '%>%' group_by summarise filter across bind_rows as_tibble
 #' @importFrom ggplot2 ggplot geom_point geom_line geom_hline facet_grid theme_bw aes
 hrv_trend_plot <- function(metrics, just_rssme = FALSE) {
-  metrics <- dplyr::select(metrics, !c(source_file, package_version))
+  metrics <- dplyr::select(metrics, !c(source_file, package_version, activity))
 
   long_metrics <- metrics %>%
     tidyr::pivot_longer(

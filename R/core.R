@@ -143,12 +143,45 @@ process_fit_file <- function(file_path, filter_factor) {
           standing_hr = round(mean(hr_data[220:330], na.rm = TRUE), digits = 2),
           standing_max_hr = max(hr_data[181:220]),
           package_version = as.character(packageVersion("ostdashr")),
-          RR_filter = filter_factor
+          RR_filter = filter_factor,
+          activity = FITfileR::getMessagesByType(fit_object, "sport")$name
         )
       } else {
-        NULL
+        tibble::tibble(
+          source_file = file_path,
+          date = as.character(date),
+          week = week,
+          time_of_day = time_of_day,
+          laying_rmssd = NA,
+          laying_sdnn = NA,
+          laying_hr = NA,
+          laying_resting_hr = NA,
+          standing_rmssd = NA,
+          standing_sdnn = NA,
+          standing_hr = NA,
+          standing_max_hr = NA,
+          package_version = as.character(packageVersion("ostdashr")),
+          RR_filter = filter_factor,
+          activity = FITfileR::getMessagesByType(fit_object, "sport")$name
+        ) # TODO change this to do HR without HRV probably?
       }
     },
-    error = function(e) NULL
+    error =  function(e) tibble::tibble(
+      source_file = file_path,
+      date = NA,
+      week = NA,
+      time_of_day = NA,
+      laying_rmssd = NA,
+      laying_sdnn = NA,
+      laying_hr = NA,
+      laying_resting_hr = NA,
+      standing_rmssd = NA,
+      standing_sdnn = NA,
+      standing_hr = NA,
+      standing_max_hr = NA,
+      package_version = as.character(packageVersion("ostdashr")),
+      RR_filter = filter_factor,
+      activity = NA
+    )
   )
 }

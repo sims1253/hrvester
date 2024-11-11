@@ -28,5 +28,5 @@ metrics <- process_fit_directory(
 library(patchwork)
 metrics = process_fit_directory("path/to/all/your/fit/files")
 hrv_plot("path/to/todays/file.fit") / 
-hrv_trend_plot(metrics, just_rssme = TRUE) {
+hrv_trend_plot(metrics, just_rssme = TRUE)
 ```
