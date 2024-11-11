@@ -17,7 +17,8 @@ Imports:
     ggplot2,
     furrr,
     FITfileR,
-    progressr
+    progressr,
+    clock
 Remotes:
     grimbough/fitFileR
 Suggests:
