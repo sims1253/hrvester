@@ -123,6 +123,7 @@ hrv_plot <- function(file_path, base = "HR", filter_factor = 0.175) {
 #' @importFrom ggplot2 ggplot geom_point geom_line geom_hline facet_grid theme_bw aes
 hrv_trend_plot <- function(metrics, just_rssme = FALSE) {
   metrics <- dplyr::select(metrics, !c(source_file, package_version, activity))
+  metrics <- calculate_moving_averages(metrics)
 
   long_metrics <- metrics %>%
     tidyr::pivot_longer(
@@ -197,4 +198,32 @@ hrv_trend_plot <- function(metrics, just_rssme = FALSE) {
       facet_grid(metric ~ time_of_day, scales = "free_y") +
       theme_bw()
   }
+}
+
+#' @importFrom ggplot2 ggplot geom_ribbon geom_line scale_color_manual scale_fill_manual theme_minimal labs
+#' @export
+plot_hrv_trends <- function(data) {
+  data %>%
+    calculate_moving_averages() %>%
+    ggplot2::ggplot(aes(x = date)) +
+    ggplot2::geom_line(aes(y = laying_rmssd, color = "Daily RMSSD")) +
+    ggplot2::geom_line(aes(y = rmssd_ma, color = "7-day MA"), size = 1) +
+    ggplot2::geom_ribbon(
+      aes(
+        ymin = rmssd_ma * 0.9, # 10% below baseline
+        ymax = rmssd_ma * 1.1, # 10% above baseline
+        fill = "Normal Range"
+      ),
+      alpha = 0.2
+    ) +
+    ggplot2::scale_color_manual(
+      values = c("Daily RMSSD" = "grey50", "7-day MA" = "blue")
+    ) +
+    ggplot2::scale_fill_manual(values = c("Normal Range" = "green")) +
+    ggplot2::theme_minimal() +
+    ggplot2::labs(
+      title = "HRV Trend with Moving Average",
+      y = "RMSSD",
+      color = "Metric"
+    )
 }

@@ -1,7 +1,7 @@
 Package: ostdashr
 Type: Package
 Title: Dashboard for orthostatic test data
-Version: 0.1.1.9000
+Version: 0.2.0.9000
 Date: 2024-11-11
 Authors@R:
     person("Maximilian", "Scholz", email = "dev.scholz@mailbox.org",
@@ -18,7 +18,9 @@ Imports:
     furrr,
     FITfileR,
     progressr,
-    clock
+    clock,
+    zoo,
+    patchwork
 Remotes:
     grimbough/fitFileR
 Suggests:

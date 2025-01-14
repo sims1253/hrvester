@@ -1,4 +1,4 @@
-cache_definition <- function(){
+cache_definition <- function() {
   tibble::tibble(
     source_file = character(),
     date = character(),
@@ -81,11 +81,11 @@ process_fit_directory <- function(
   if (length(new_files) > 0 || length(outdated_entries) > 0) {
     # Process new and outdated files
     files_to_process <- unique(c(new_files, outdated_entries))
-    p = progressr::progressor(along = files_to_process)
+    p <- progressr::progressor(along = files_to_process)
     new_data <- furrr::future_map_dfr(
       files_to_process,
       function(file_path) {
-        result = process_fit_file(file_path, filter_factor = filter_factor)
+        result <- process_fit_file(file_path, filter_factor = filter_factor)
         p()
         return(result)
       }
