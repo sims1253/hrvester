@@ -284,7 +284,7 @@ generate_training_recommendations <- function(score, primary_type = "BJJ") {
     )
   }
 
-  base_rec$score = score
+  base_rec$score <- score
 
   return(base_rec)
 }
