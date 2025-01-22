@@ -27,8 +27,18 @@
 #' @return A patchwork object combining four ggplot2 plots
 #' @export
 plot_hrv_dashboard <- function(data) {
-  # Calculate moving averages first
-  data <- calculate_moving_averages(data)
+  # Get Okabe-Ito colors
+  okabe_colors <- palette.colors(palette = "Okabe-Ito")
+
+  # Calculate all moving averages first
+  data <- calculate_moving_averages(data) %>%
+    mutate(
+      # Add moving average for orthostatic response
+      ortho_response = standing_hr - laying_hr,
+      ortho_ma = calculate_robust_ma(ortho_response),
+      # Add moving average for HRR
+      hrr_ma = calculate_robust_ma(hrr_60s)
+    )
 
   # 1. RMSSD Plot with training zones
   p1 <- ggplot(data, aes(x = as.Date(date))) +
@@ -50,100 +60,103 @@ plot_hrv_dashboard <- function(data) {
       alpha = 0.2
     ) +
     # Lines
-    geom_line(aes(y = laying_rmssd, color = "Daily RMSSD"), size = 0.7) +
-    geom_line(aes(y = rmssd_ma, color = "7-day MA"), size = 1) +
+    geom_line(aes(y = laying_rmssd, linetype = "Daily"), color = okabe_colors[3]) +
+    geom_line(aes(y = rmssd_ma, linetype = "7-day MA"), color = okabe_colors[2]) +
     # Styling
-    scale_color_manual(
-      values = c("Daily RMSSD" = "grey50", "7-day MA" = "blue")
+    scale_linetype_manual(
+      values = c("Daily" = "solid", "7-day MA" = "solid"),
+      name = "Measurement"
     ) +
     scale_fill_manual(
       values = c(
-        "Normal Zone" = "green",
-        "Caution Zone" = "yellow"
-      )
+        "Normal Zone" = okabe_colors[4],
+        "Caution Zone" = okabe_colors[5]
+      ),
+      name = "Recovery Zones"
     ) +
     labs(
-      title = "RMSSD Trend with Training Zones",
-      y = "RMSSD",
-      color = "Metric",
-      fill = "Zone"
+      title = "RMSSD Trend",
+      y = "RMSSD"
     ) +
-    theme_minimal() +
-    theme(legend.position = "bottom")
+    theme_minimal()
 
   # 2. Orthostatic Response Plot
   p2 <- ggplot(data, aes(x = as.Date(date))) +
-    geom_line(aes(y = standing_hr - laying_hr, color = "HR Response")) +
-    geom_smooth(
-      aes(y = standing_hr - laying_hr),
-      method = "loess",
-      span = 0.3,
-      se = FALSE,
-      color = "blue"
+    geom_line(aes(y = ortho_response, linetype = "Daily"),
+      color = okabe_colors[3]
+    ) +
+    geom_line(
+      aes(y = ortho_ma, linetype = "7-day MA"),
+      color = okabe_colors[2],
     ) +
     geom_hline(
       yintercept = 15,
-      linetype = "dashed",
-      color = "red",
-      alpha = 0.5
+      linetype = "dotted",
+      color = okabe_colors[4],
+      alpha = 0.9
+    ) +
+    scale_linetype_manual(
+      values = c("Daily" = "solid", "7-day MA" = "solid"),
+      name = "Measurement"
     ) +
     labs(
       title = "Orthostatic Response",
-      y = "HR Increase (bpm)",
-      color = "Metric"
+      y = "HR Increase (bpm)"
     ) +
-    theme_minimal() +
-    theme(legend.position = "bottom")
+    theme_minimal()
 
   # 3. Heart Rate Recovery Plot
   p3 <- ggplot(data, aes(x = as.Date(date))) +
-    geom_line(aes(y = hrr_60s, color = "60s HRR")) +
-    geom_smooth(
-      aes(y = hrr_60s),
-      method = "loess",
-      span = 0.3,
-      se = FALSE,
-      color = "blue"
+    geom_line(aes(y = hrr_60s, linetype = "Daily"), color = okabe_colors[3]) +
+    geom_line(
+      aes(y = hrr_ma, linetype = "7-day MA"),
+      color = okabe_colors[2]
     ) +
     geom_hline(
       yintercept = c(12, 20, 25),
-      linetype = "dashed",
-      color = c("red", "yellow", "green"),
-      alpha = 0.5
+      linetype = "dotted",
+      color = c(okabe_colors[7], okabe_colors[2], okabe_colors[4]),
+      alpha = 0.9
+    ) +
+    scale_linetype_manual(
+      values = c("Daily" = "solid", "7-day MA" = "solid"),
+      name = "Measurement"
     ) +
     labs(
       title = "Heart Rate Recovery (60s)",
-      y = "Recovery (bpm)",
-      color = "Metric"
+      y = "Recovery (bpm)"
     ) +
-    theme_minimal() +
-    theme(legend.position = "bottom")
+    theme_minimal()
 
   # 4. Resting HR Plot
   p4 <- ggplot(data, aes(x = as.Date(date))) +
-    geom_line(aes(y = laying_resting_hr, color = "Daily RHR")) +
-    geom_line(aes(y = resting_hr_ma, color = "7-day MA"), size = 1) +
-    geom_smooth(
-      aes(y = laying_resting_hr),
-      method = "loess",
-      span = 0.3,
-      se = FALSE,
-      color = "blue"
+    geom_line(aes(y = laying_resting_hr, linetype = "Daily"),
+      color = okabe_colors[3]
+    ) +
+    geom_line(aes(y = resting_hr_ma, linetype = "7-day MA"),
+      color = okabe_colors[2]
+    ) +
+    scale_linetype_manual(
+      values = c("Daily" = "solid", "7-day MA" = "solid"),
+      name = "Measurement"
     ) +
     labs(
-      title = "Resting Heart Rate Trend",
-      y = "RHR (bpm)",
-      color = "Metric"
+      title = "Resting Heart Rate",
+      y = "RHR (bpm)"
     ) +
-    theme_minimal() +
-    theme(legend.position = "bottom")
+    theme_minimal()
 
   # Combine plots using patchwork
   combined_plot <- (p1 + p2) / (p3 + p4) +
     plot_layout(guides = "collect") +
     plot_annotation(
       title = "HRV Recovery Dashboard",
-      theme = theme_minimal()
+      theme = theme_minimal() +
+        theme(
+          legend.position = "bottom",
+          plot.title = element_text(size = 16, face = "bold"),
+          plot.subtitle = element_text(size = 12)
+        )
     )
 
   return(combined_plot)
@@ -280,7 +293,7 @@ plot_bjj_metrics <- function(data) {
     ) +
     geom_hline(
       yintercept = c(40, 60, 80),
-      linetype = "dashed",
+      linetype = "solid",
       color = c("red", "yellow", "green"),
       alpha = 0.5
     ) +
