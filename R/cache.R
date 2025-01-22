@@ -62,7 +62,7 @@ process_fit_directory <- function(
   # Find new files to process
   new_files <- setdiff(fit_files, cached_data$source_file)
   outdated_entries <- cached_data %>%
-    dplyr::filter(package_version != utils::packageVersion("ostdashr") |
+    dplyr::filter(package_version != utils::packageVersion("hrvester") |
       RR_filter != filter_factor) %>%
     dplyr::pull(source_file)
 

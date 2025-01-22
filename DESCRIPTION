@@ -1,4 +1,4 @@
-Package: ostdashr
+Package: hrvester
 Type: Package
 Title: Dashboard for orthostatic test data
 Version: 0.2.0.9000
@@ -30,8 +30,8 @@ VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 NeedsCompilation: no
-URL: https://github.com/sims1253/ost_dashboard
-BugReports: https://github.com/sims1253/ost_dashboard/issues
+URL: https://github.com/sims1253/hrvester
+BugReports: https://github.com/sims1253/hrvester/issues
 Description: An (eventually) interactive dashboard application to analyze .fit
     files of orthostatic tests.
 Config/testthat/parallel: true

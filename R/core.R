@@ -153,7 +153,7 @@ process_fit_file <- function(file_path, filter_factor) {
           hrr_60s = hrr_metrics$hrr_60s,
           hrr_relative = hrr_metrics$hrr_relative,
           orthostatic_rise = hrr_metrics$orthostatic_rise,
-          package_version = as.character(packageVersion("ostdashr")),
+          package_version = as.character(packageVersion("hrvester")),
           RR_filter = filter_factor,
           activity = FITfileR::getMessagesByType(fit_object, "sport")$name
         )
@@ -174,7 +174,7 @@ process_fit_file <- function(file_path, filter_factor) {
           hrr_60s = NA,
           hrr_relative = NA,
           orthostatic_rise = NA,
-          package_version = as.character(packageVersion("ostdashr")),
+          package_version = as.character(packageVersion("hrvester")),
           RR_filter = filter_factor,
           activity = FITfileR::getMessagesByType(fit_object, "sport")$name
         ) # TODO change this to do HR without HRV probably?
@@ -197,7 +197,7 @@ process_fit_file <- function(file_path, filter_factor) {
         hrr_60s = NA,
         hrr_relative = NA,
         orthostatic_rise = NA,
-        package_version = as.character(packageVersion("ostdashr")),
+        package_version = as.character(packageVersion("hrvester")),
         RR_filter = filter_factor,
         activity = NA
       )
