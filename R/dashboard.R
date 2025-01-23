@@ -1,10 +1,3 @@
-#' @import ggplot2
-#' @import patchwork
-#' @import dplyr
-#' @importFrom stats loess
-#' @importFrom scales seq_gradient_pal
-# Enhanced HRV visualization functions using ggplot2 and patchwork
-
 #' Create comprehensive HRV dashboard
 #'
 #' Generates a 4-panel dashboard showing key HRV metrics including:
@@ -26,140 +19,232 @@
 #'   }
 #' @return A patchwork object combining four ggplot2 plots
 #' @export
+#' @importFrom ggplot2 ggplot aes geom_line geom_ribbon geom_tile geom_smooth scale_color_manual scale_fill_manual labs theme_minimal theme_bw theme element_text scale_y_continuous geom_hline
+#' @importFrom dplyr mutate filter %>%
+#' @importFrom stats loess
+#' @importFrom scales seq_gradient_pal
 plot_hrv_dashboard <- function(data) {
-  # Get Okabe-Ito colors
-  okabe_colors <- palette.colors(palette = "Okabe-Ito")
-
-  # Calculate all moving averages first
-  data <- calculate_moving_averages(data) %>%
+  # Pre-process data
+  data <- data %>%
     mutate(
-      # Add moving average for orthostatic response
+      date = as.Date(date),
+      group = 1 # Add constant group for geom_line
+    ) %>%
+    calculate_moving_averages() %>%
+    mutate(
       ortho_response = standing_hr - laying_hr,
       ortho_ma = calculate_robust_ma(ortho_response),
-      # Add moving average for HRR
       hrr_ma = calculate_robust_ma(hrr_60s)
-    )
+    ) %>%
+    calculate_neural_recovery()
 
-  # 1. RMSSD Plot with training zones
-  p1 <- ggplot(data, aes(x = as.Date(date))) +
-    # Zone bands
+  # Get recommendations
+  current_day <- max(data$date)
+  current_metrics <- data %>%
+    filter(date == current_day) %>%
+    slice(1)
+
+  baseline_metrics <- data %>%
+    filter(date < current_day & date >= current_day - 7)
+
+  readiness <- analyze_readiness(current_metrics, baseline_metrics)
+  training_rec <- generate_training_recommendations(
+    current_metrics$neural_recovery_score,
+    primary_type = "BJJ"
+  )
+
+  # Base theme
+  base_theme <- theme_minimal() +
+    theme(
+      plot.title = element_text(size = 11, face = "bold"),
+      axis.title = element_text(size = 10),
+      axis.text = element_text(size = 9),
+      panel.grid.minor = element_blank(),
+      legend.position = "none"
+    )
+  
+  # 1. RMSSD Plot
+  p1 <- ggplot(data, aes(x = date, group = group)) +
+    geom_ribbon(
+      aes(
+        ymin = rmssd_ma * 0.8,
+        ymax = rmssd_ma * 0.9,
+        fill = "Caution"
+      ),
+      alpha = 0.15
+    ) +
     geom_ribbon(
       aes(
         ymin = rmssd_ma * 0.9,
-        ymax = rmssd_ma * 1.1,
-        fill = "Normal Zone"
+        ymax = rmssd_ma * 1.0,
+        fill = "Normal"
       ),
       alpha = 0.2
     ) +
     geom_ribbon(
       aes(
-        ymin = rmssd_ma * 0.85,
-        ymax = rmssd_ma * 0.9,
-        fill = "Caution Zone"
+        ymin = rmssd_ma * 1.0,
+        ymax = rmssd_ma * 1.1,
+        fill = "Optimal"
       ),
-      alpha = 0.2
+      alpha = 0.25
     ) +
-    # Lines
-    geom_line(aes(y = laying_rmssd, linetype = "Daily"), color = okabe_colors[3]) +
-    geom_line(aes(y = rmssd_ma, linetype = "7-day MA"), color = okabe_colors[2]) +
-    # Styling
-    scale_linetype_manual(
-      values = c("Daily" = "solid", "7-day MA" = "solid"),
+    geom_line(aes(y = laying_rmssd, color = "Daily")) +
+    geom_line(aes(y = rmssd_ma, color = "7-day MA")) +
+    scale_color_manual(
+      values = c("Daily" = "#56B4E9", "7-day MA" = "#E69F00"),
       name = "Measurement"
     ) +
     scale_fill_manual(
-      values = c(
-        "Normal Zone" = okabe_colors[4],
-        "Caution Zone" = okabe_colors[5]
-      ),
-      name = "Recovery Zones"
+      values = c("Optimal" = "#0072B2", "Normal" = "#009E73", "Caution" = "#D55E00"),
+      name = "Recovery Zones",
+      breaks = c("Optimal", "Normal", "Caution")
     ) +
-    labs(
-      title = "RMSSD Trend",
-      y = "RMSSD"
-    ) +
-    theme_minimal()
+    labs(title = "RMSSD Trend", y = "RMSSD", x = NULL) +
+    base_theme
 
   # 2. Orthostatic Response Plot
-  p2 <- ggplot(data, aes(x = as.Date(date))) +
-    geom_line(aes(y = ortho_response, linetype = "Daily"),
-      color = okabe_colors[3]
-    ) +
-    geom_line(
-      aes(y = ortho_ma, linetype = "7-day MA"),
-      color = okabe_colors[2],
-    ) +
-    geom_hline(
-      yintercept = 15,
-      linetype = "dotted",
-      color = okabe_colors[4],
-      alpha = 0.9
-    ) +
-    scale_linetype_manual(
-      values = c("Daily" = "solid", "7-day MA" = "solid"),
+  p2 <- ggplot(data, aes(x = date, group = group)) +
+    geom_line(aes(y = ortho_response, color = "Daily")) +
+    geom_line(aes(y = ortho_ma, color = "7-day MA")) +
+    geom_hline(yintercept = 15, linetype = "dotted", color = "gray50") +
+    scale_color_manual(
+      values = c("Daily" = "#56B4E9", "7-day MA" = "#E69F00"),
       name = "Measurement"
     ) +
-    labs(
-      title = "Orthostatic Response",
-      y = "HR Increase (bpm)"
-    ) +
-    theme_minimal()
+    labs(title = "Orthostatic Response", y = "HR Increase (bpm)", x = NULL) +
+    base_theme
 
   # 3. Heart Rate Recovery Plot
-  p3 <- ggplot(data, aes(x = as.Date(date))) +
-    geom_line(aes(y = hrr_60s, linetype = "Daily"), color = okabe_colors[3]) +
-    geom_line(
-      aes(y = hrr_ma, linetype = "7-day MA"),
-      color = okabe_colors[2]
-    ) +
+  p3 <- ggplot(data, aes(x = date, group = group)) +
+    geom_line(aes(y = hrr_60s, color = "Daily")) +
+    geom_line(aes(y = hrr_ma, color = "7-day MA")) +
     geom_hline(
       yintercept = c(12, 20, 25),
       linetype = "dotted",
-      color = c(okabe_colors[7], okabe_colors[2], okabe_colors[4]),
-      alpha = 0.9
+      color = "gray50"
     ) +
-    scale_linetype_manual(
-      values = c("Daily" = "solid", "7-day MA" = "solid"),
+    scale_color_manual(
+      values = c("Daily" = "#56B4E9", "7-day MA" = "#E69F00"),
       name = "Measurement"
     ) +
-    labs(
-      title = "Heart Rate Recovery (60s)",
-      y = "Recovery (bpm)"
-    ) +
-    theme_minimal()
+    labs(title = "Heart Rate Recovery (60s)", y = "Recovery (bpm)", x = "Date") +
+    base_theme
 
   # 4. Resting HR Plot
-  p4 <- ggplot(data, aes(x = as.Date(date))) +
-    geom_line(aes(y = laying_resting_hr, linetype = "Daily"),
-      color = okabe_colors[3]
-    ) +
-    geom_line(aes(y = resting_hr_ma, linetype = "7-day MA"),
-      color = okabe_colors[2]
-    ) +
-    scale_linetype_manual(
-      values = c("Daily" = "solid", "7-day MA" = "solid"),
+  p4 <- ggplot(data, aes(x = date, group = group)) +
+    geom_line(aes(y = laying_resting_hr, color = "Daily")) +
+    geom_line(aes(y = resting_hr_ma, color = "7-day MA")) +
+    scale_color_manual(
+      values = c("Daily" = "#56B4E9", "7-day MA" = "#E69F00"),
       name = "Measurement"
     ) +
-    labs(
-      title = "Resting Heart Rate",
-      y = "RHR (bpm)"
-    ) +
-    theme_minimal()
+    labs(title = "Resting Heart Rate", y = "RHR (bpm)", x = "Date") +
+    base_theme
 
-  # Combine plots using patchwork
-  combined_plot <- (p1 + p2) / (p3 + p4) +
-    plot_layout(guides = "collect") +
-    plot_annotation(
-      title = "HRV Recovery Dashboard",
-      theme = theme_minimal() +
-        theme(
-          legend.position = "bottom",
-          plot.title = element_text(size = 16, face = "bold"),
-          plot.subtitle = element_text(size = 12)
-        )
+  # Create a dummy plot for the legend
+  legend_data <- data.frame(
+    x = 1:3,
+    y = 1:3,
+    type = factor(c("Daily", "7-day MA", "Recovery Zones")),
+    fill_type = factor(c("Optimal", "Normal", "Caution"),
+                         levels = c("Optimal", "Normal", "Caution"))
+  )
+
+  legend_plot <- ggplot(legend_data) +
+    geom_tile(aes(x = x, y = y, fill = fill_type),
+              color = NA, width = 0.9, height = 0.9) +
+    geom_line(aes(x = x, y = y, color = type)) +
+    scale_fill_manual(
+      values = c(
+        "Optimal" = "#0072B2",
+        "Normal" = "#009E73",
+        "Caution" = "#D55E00"
+      ),
+      name = "Recovery Zones"
+    ) +
+    scale_color_manual(
+      values = c("Daily" = "#56B4E9", "7-day MA" = "#E69F00"),
+      name = "Measurement"
+    ) +
+    theme_void() +
+    theme(
+      legend.position = "bottom",
+      legend.title = element_text(size = 12),
+      legend.text = element_text(size = 12),
+      legend.box = "vertical",
+      legend.direction = "vertical",
+      legend.spacing.y = unit(15, "pt"),
+      legend.box.just = "left"
+    ) +
+    guides(
+      fill = guide_legend(order = 2, nrow = 1),
+      color = guide_legend(order = 1, nrow = 1)
     )
 
-  return(combined_plot)
+  # Extract legend
+  tmp <- ggplot_gtable(ggplot_build(legend_plot))
+  legend <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[legend]]
+
+  # Create text elements
+  left_text <- grid::textGrob(
+    paste(
+      "Recommendations based on relative state:",
+      sprintf("BJJ: %s", readiness$recommendations$bjj),
+      sprintf("Strength: %s", readiness$recommendations$strength),
+      sprintf("Cardio: %s", readiness$recommendations$cardio),
+      sep = "\n"
+    ),
+    gp = grid::gpar(fontsize = 12),
+    just = "right"
+  )
+
+  right_text <- grid::textGrob(
+    paste(
+      "Recommendations based on absolute state:",
+      sprintf("Intensity: %s", training_rec$intensity),
+      sprintf("Volume: %s", training_rec$volume),
+      sprintf("Focus: %s", training_rec$focus),
+      sep = "\n"
+    ),
+    gp = grid::gpar(fontsize = 12),
+    just = "left"
+  )
+
+  # Create layout
+  main_plots <- gridExtra::arrangeGrob(
+    p1, p2, p3, p4,
+    nrow = 2,
+    ncol = 2
+  )
+
+  # Create the title
+  title <- grid::textGrob("HRV Recovery Dashboard",
+    gp = grid::gpar(fontface = "bold", fontsize = 14)
+  )
+
+  # Create the bottom row with text and legend
+  bottom_row <- gridExtra::arrangeGrob(
+    left_text,
+    legend,
+    right_text,
+    ncol = 3,
+    widths = unit(c(5, 5, 5), "cm"),
+    padding = unit(5, "mm")
+  )
+
+  # Combine everything
+  final_plot <- gridExtra::arrangeGrob(
+    title,
+    main_plots,
+    bottom_row,
+    heights = unit(c(0.5, 4, 1), "null"),
+    padding = unit(0, "mm")
+  )
+  gridExtra::grid.arrange(
+    final_plot
+  )
 }
 
 #' Create weekly summary heatmap

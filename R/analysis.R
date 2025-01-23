@@ -155,24 +155,6 @@ calculate_trend_direction <- function(values) {
   }
 }
 
-# Example usage in your main script:
-process_fit_directory <- function(dir_path, ...) {
-  # Your existing code...
-
-  # Generate daily report if new data
-  if (length(new_files) > 0 || length(outdated_entries) > 0) {
-    report <- generate_daily_report(all_data)
-    cat(report)
-
-    # Save report to file
-    report_file <- file.path(dirname(cache_file), "hrv_report.txt")
-    writeLines(report, report_file)
-  }
-
-  return(all_data)
-}
-
-
 #' Calculate full neural recovery score based on BioForce HRV methodology
 #' @param data Dataframe containing HRV measurements
 #' @return Dataframe with added neural recovery scores
