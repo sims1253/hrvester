@@ -68,44 +68,6 @@ dashboard
 
 Full function reference: [Reference Manual](man/)
 
-## Example Workflow
-
-```python
-# fit_export.py - Automated Garmin data pipeline
-from hrvester import GarminSync
-
-sync = GarminSync()
-sync.download_latest_activities()
-sync.convert_to_fit()
-```
-
-```r
-# hrv.R - Daily monitoring report
-library(hrvester)
-
-metrics <- process_fit_directory("fit_files/") |>
-  calculate_neural_recovery() |>
-  flag_overtraining_risk()
-
-generate_daily_report(metrics) |>
-  save_html_report("daily_readiness.html")
-```
-
-## Contributing
-
-1. Fork repository
-2. Create feature branch (`git checkout -b feature/improvement`)
-3. Commit changes (`git commit -am 'Add new metric'`)
-4. Push branch (`git push origin feature/improvement`)
-5. Open Pull Request
-
-Please follow our [coding standards](docs/CODING_STANDARDS.md) and:
-
-- Include Roxygen documentation for all functions
-- Add test cases for new features
-- Maintain 90%+ code coverage
-- Use `future_map` for parallel operations
-
 ## Citation
 
 If using in research, please cite:
@@ -118,9 +80,4 @@ If using in research, please cite:
   url = {https://github.com/sims1253/hrvester}
 }
 ```
-
-## License
-
-MIT License - See [LICENSE](LICENSE) for details
-
 ---
