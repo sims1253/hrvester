@@ -7,11 +7,26 @@
 generate_daily_report(data)
 }
 \arguments{
-\item{data}{HRV data frame}
+\item{data}{A dataframe containing HRV metrics for at least 8 consecutive
+days (current day plus 7-day baseline). Should include:
+\itemize{
+\item date (Date): Measurement dates
+\item laying_rmssd (numeric): RMSSD during laying position
+\item laying_resting_hr (numeric): Resting heart rate
+\item orthostatic_rise (numeric): Orthostatic response
+}}
 }
 \value{
-Formatted report
+A formatted character string containing the HRV report with sections:
+\itemize{
+\item Date and status header
+\item Current metrics with baseline comparisons
+\item Training recommendations for BJJ, strength, and cardio
+\item Warning flags if present
+\item 7-day trend analysis for RMSSD and heart rate
+}
 }
 \description{
-Generate daily HRV report
+Creates a formatted text report summarizing current HRV status, metrics, and
+recommendations.
 }

@@ -1,142 +1,280 @@
 #' Extract RR intervals from FIT file
 #'
-#' @param fit_object FITfileR object
-#' @param filter_factor Used to filter RR values that are 1.x times smaller or
-#'   larger than the last one as suspected false readings.
-#' @return List of laying and standing RR intervals in ms
-#' @keywords internal
-extract_rr_intervals <- function(fit_object,
-                                 filter_factor,
-                                 laying_time = 180,
-                                 standing_time = 180) {
-  # Get HRV data directly using FITfileR methods
-  if ("hrv" %in% FITfileR::listMessageTypes(fit_object)) {
-    # hopefully time between heartbeats is below 2 seconds.
-    hrv_data <- dplyr::filter(FITfileR::hrv(fit_object), time < 2)$time
-  } else {
+#' @description
+#' Extracts heart rate variability data from FIT files by analyzing RR intervals
+#' during both laying and standing positions. Implements robust filtering to maintain
+#' data quality and properly handle phase transitions.
+#'
+#' @param fit_object FITfileR object containing the FIT file data
+#' @param filter_factor Numeric value (0-1) for filtering outliers. Higher values
+#'   allow more variation between successive intervals
+#' @param laying_time Duration in seconds for laying position (default: 180)
+#' @param standing_time Duration in seconds for standing position (default: 180)
+#' @param transition_buffer Time in seconds to exclude around position change (default: 5)
+#'
+#' @return List containing:
+#'   \item{laying}{Numeric vector of RR intervals during laying position (seconds)}
+#'   \item{standing}{Numeric vector of RR intervals during standing position (seconds)}
+#'
+#' @importFrom FITfileR readFitFile
+#' @importFrom dplyr "%>%"
+#' @importFrom rlang .data
+#' @export
+extract_rr_data <- function(
+    fit_object,
+    filter_factor = 0.15,
+    laying_time = 180,
+    standing_time = 180,
+    transition_buffer = 5) {
+  # Input validation with descriptive errors
+  if (!inherits(fit_object, "FitFile")) {
+    stop("fit_object must be a FitFile object")
+  }
+  if (!is.numeric(filter_factor) || filter_factor <= 0 || filter_factor >= 1) {
+    stop("filter_factor must be between 0 and 1")
+  }
+  if (!is.numeric(laying_time) || laying_time <= 0) {
+    stop("laying_time must be positive")
+  }
+  if (!is.numeric(standing_time) || standing_time <= 0) {
+    stop("standing_time must be positive")
+  }
+  if (!is.numeric(transition_buffer) || transition_buffer < 0) {
+    stop("transition_buffer must be non-negative")
+  }
+
+  # Check for HRV data availability
+  # Check for HRV data availability using your method
+  hrv_data_check <- FITfileR::hrv(fit_object)
+  if (is.null(hrv_data_check) || nrow(hrv_data_check) == 0) {
+    warning("No HRV data found in FIT file")
+    return(list(laying = numeric(), standing = numeric(), quality_metrics = numeric()))
+  }
+
+  # Extract raw RR intervals
+  hrv_data <- dplyr::filter(hrv_data_check, .data$time < 2) # remove the random 65.5 values
+  if (nrow(hrv_data) == 0) {
+    warning("Empty HRV data in FIT file")
+    return(list(laying = numeric(), standing = numeric(), quality_metrics = numeric()))
+  }
+
+  # Check data density
+  total_time <- sum(hrv_data$time)
+  expected_beats <- (laying_time + standing_time) / mean(hrv_data$time)
+  actual_beats <- nrow(hrv_data)
+
+  if (actual_beats / expected_beats < 0.8) { # Require at least 80% of expected beats
+    warning(sprintf(
+      "Insufficient data density: %.1f%% of expected beats",
+      100 * actual_beats / expected_beats
+    ))
     return(list(laying = numeric(), standing = numeric()))
   }
 
-  # Pre-calculate differences for RMSSD
-  RR <- c(hrv_data[1])
-  for (i in 2:length(hrv_data)) {
-    if (hrv_data[i - 1] * (1 - filter_factor) < hrv_data[i] &
-      hrv_data[i - 1] * (1 + filter_factor) > hrv_data[i]) {
-      RR <- append(RR, hrv_data[i])
+  # Convert to seconds if necessary (some devices record in milliseconds)
+  rr_intervals <- if (mean(hrv_data$time, na.rm = TRUE) > 10) {
+    hrv_data$time / 1000 # Convert from ms to seconds
+  } else {
+    hrv_data$time
+  }
+
+  # Initialize filtered intervals vector
+  filtered_intervals <- numeric(length(rr_intervals))
+  filtered_intervals[1] <- rr_intervals[1]
+  n_filtered <- 1
+
+  # Apply adaptive filtering with phase-specific thresholds
+  phase_factors <- list(
+    laying = filter_factor * 1.3, # Up to ~20% variation for RSA
+    transition = filter_factor * 2.0, # Up to ~30% during transition
+    standing = filter_factor * 0.8 # ~12% standing (less RSA)
+  )
+
+  for (i in 2:length(rr_intervals)) {
+    # Determine current phase based on cumulative time
+    cum_time <- sum(filtered_intervals[1:n_filtered])
+    current_factor <- if (cum_time < laying_time - transition_buffer) {
+      phase_factors$laying
+    } else if (cum_time < laying_time + transition_buffer) {
+      phase_factors$transition
+    } else {
+      phase_factors$standing
+    }
+
+    # Use last valid interval as reference
+    reference <- filtered_intervals[n_filtered]
+    current <- rr_intervals[i]
+
+    # Calculate phase-specific bounds
+    lower_bound <- reference * (1 - current_factor)
+    upper_bound <- reference * (1 + current_factor)
+
+    # Apply filter
+    if (current >= lower_bound && current <= upper_bound) {
+      n_filtered <- n_filtered + 1
+      filtered_intervals[n_filtered] <- current
     }
   }
 
-  # Get heartbeat timestamps
-  timestamps <- cumsum(RR)
+  # Trim unused space
+  filtered_intervals <- filtered_intervals[1:n_filtered]
 
-  # Return RR intervals for each position
-  return(
-    list(
-      laying = RR[1:which.max(timestamps > 180) - 1],
-      standing = RR[
-        which.max(timestamps > 180):which.max(timestamps > 360) - 1
-      ]
-    )
+  # Calculate cumulative times
+  cumulative_times <- cumsum(filtered_intervals)
+
+  # Calculate position indices with transition buffer
+  laying_end <- max(which(cumulative_times <= (laying_time - transition_buffer)))
+  standing_start <- min(which(cumulative_times >= (laying_time + transition_buffer)))
+  standing_end <- max(which(cumulative_times <= (laying_time + standing_time)))
+
+  # Validate indices
+  if (is.infinite(laying_end) || is.infinite(standing_start) ||
+    is.infinite(standing_end) || laying_end >= standing_start ||
+    standing_start > standing_end) {
+    warning("Invalid position transitions detected")
+    return(list(laying = numeric(), standing = numeric()))
+  }
+
+  # Apply physiological quality checks
+  laying_intervals <- filtered_intervals[1:laying_end]
+  standing_intervals <- filtered_intervals[standing_start:standing_end]
+
+  # Convert to HR for checks (60/RR)
+  laying_hr <- 60 / laying_intervals
+  standing_hr <- 60 / standing_intervals
+
+  # Quality checks based on physiological norms
+  quality_checks <- list(
+    laying_hr_range = range(laying_hr),
+    standing_hr_range = range(standing_hr),
+    laying_rmssd = sqrt(mean(diff(laying_intervals * 1000)^2)),
+    standing_rmssd = sqrt(mean(diff(standing_intervals * 1000)^2)),
+    orthostatic_response = mean(standing_hr) - mean(laying_hr)
+  )
+
+  # Flag potentially problematic measurements
+  warnings <- character(0)
+  if (quality_checks$laying_hr_range[1] < 30 || quality_checks$laying_hr_range[2] > 100) {
+    warnings <- c(warnings, "Unusual laying HR range detected")
+  }
+  if (quality_checks$standing_hr_range[1] < 40 || quality_checks$standing_hr_range[2] > 120) {
+    warnings <- c(warnings, "Unusual standing HR range detected")
+  }
+  if (quality_checks$orthostatic_response < 0 || quality_checks$orthostatic_response > 40) {
+    warnings <- c(warnings, "Unusual orthostatic response detected")
+  }
+
+  if (length(warnings) > 0) {
+    warning(paste(warnings, collapse = "\n"))
+  }
+
+  # Return intervals and quality metrics
+  list(
+    laying = laying_intervals,
+    standing = standing_intervals,
+    quality_metrics = quality_checks
   )
 }
 
 #' Calculate HRV metrics from RR intervals
 #'
-#' @param rr_intervals Numeric vector of RR intervals in milliseconds
+#' @description
+#' Calculates key heart rate variability metrics including RMSSD and SDNN
+#'
+#' @param rr_intervals Numeric vector of RR intervals in seconds
 #' @return Named list containing:
-#'   \item{rmssd}{Root Mean Square of Successive Differences}
-#'   \item{sdnn}{Standard Deviation of NN intervals}
-#'   \item{mean_hr}{Mean Heart Rate in BPM}
-#' @keywords internal
+#'   \item{rmssd}{Root Mean Square of Successive Differences (ms)}
+#'   \item{sdnn}{Standard Deviation of NN intervals (ms)}
+#'
+#' @export
 calculate_hrv <- function(rr_intervals) {
   if (length(rr_intervals) < 2) {
     return(list(
       rmssd = NA_real_,
-      sdnn = NA_real_,
-      mean_hr = NA_real_
+      sdnn = NA_real_
     ))
   }
 
-  return(
-    list(
-      rmssd = round(
-        sqrt(mean(diff(1000 * rr_intervals)^2, na.rm = TRUE)),
-        digits = 2
-      ),
-      sdnn = round(sd(1000 * rr_intervals, na.rm = TRUE), digits = 2)
-    )
-  )
+  # Convert to milliseconds for calculation
+  rr_ms <- 1000 * rr_intervals
+
+  return(list(
+    rmssd = round(sqrt(mean(diff(rr_ms)^2, na.rm = TRUE)), digits = 2),
+    sdnn = round(stats::sd(rr_ms, na.rm = TRUE), digits = 2)
+  ))
 }
 
-#' Extract HR data from \code{FitFile} object
+#' Extract HR data from FIT object
 #'
-#' @param fit_object An object of class \code{FitFile}, eg.
-#'   from \code{\link[FITfileR::readFitFile]{FITfileR::readFitFile}}
+#' @description
+#' Extracts heart rate data handling both list and data frame formats
 #'
-#' @return A vector containing up to the first three minutes of heart rate data.
+#' @param fit_object An object of class FitFile
+#' @return Numeric vector of heart rate values
 #' @export
+#' @importFrom FITfileR records
 get_HR <- function(fit_object) {
-  HR <- FITfileR::records(fit_object)
-  if (all(class(HR) == "list")) {
-    HR <- HR[[which.max(sapply(HR, nrow))]]$heart_rate
-    HR <- HR[1:min(360, length(HR))]
-  } else {
-    HR <- HR$heart_rate[1:min(360, nrow(HR))]
+  if (!inherits(fit_object, "FitFile")) {
+    stop("fit_object must be a FitFile object")
   }
+
+  HR <- FITfileR::records(fit_object)
+
+  if (inherits(HR, "list")) {
+    # Find record with most data points
+    max_rows_idx <- which.max(sapply(HR, nrow))
+    HR <- HR[[max_rows_idx]]$heart_rate
+  } else {
+    HR <- HR$heart_rate
+  }
+
+  # Limit to first 360 seconds
+  HR <- HR[1:min(360, length(HR))]
+
   return(HR)
 }
 
-#' Process a single FIT file to extract HRV metrics
+#' Process a single FIT file
+#'
+#' @description
+#' Calculates HRV metrics from a FIT file with error handling
 #'
 #' @param file_path Path to FIT file
-#' @return Tibble row containing:
-#'   \item{source_file}{Path to processed file}
-#'   \item{date}{Date of measurement}
-#'   \item{time_of_day}{Morning or Evening}
-#'   \item{laying_rmssd}{RMSSD during laying position}
-#'   \item{laying_sdnn}{SDNN during laying position}
-#'   \item{laying_hr}{Mean HR during laying position}
-#'   \item{standing_rmssd}{RMSSD during standing position}
-#'   \item{standing_sdnn}{SDNN during standing position}
-#'   \item{standing_hr}{Mean HR during standing position}
-#' @return NULL if processing fails
+#' @param filter_factor Numeric value for RR filtering
+#' @return Tibble containing HRV metrics
 #' @export
 process_fit_file <- function(file_path, filter_factor) {
-  tryCatch(
+  if (!file.exists(file_path)) {
+    stop("File does not exist: ", file_path)
+  }
+
+  result <- tryCatch(
     {
-      # Read file once
       fit_object <- FITfileR::readFitFile(file_path)
-      hr_data <- get_HR(fit_object = fit_object)
+      hr_data <- get_HR(fit_object)
 
-      # Calculate resting HR using new method
-      resting_hr <- calculate_resting_hr(hr_data[30:180], method = "lowest_sustained")
-
-      # Calculate HRR after standing
-      hrr_metrics <- calculate_hrr(hr_data[181:240], resting_hr)
-
-      # Extract RR intervals
-      rr_data <- extract_rr_intervals(
-        fit_object = fit_object,
-        filter_factor = filter_factor
+      # Calculate metrics
+      resting_hr <- calculate_resting_hr(
+        hr_data[30:180],
+        method = "lowest_sustained"
       )
 
-      # Only process if we have enough data
-      if (length(rr_data$laying) >= 2 && length(rr_data$standing) >= 2) {
-        # Get times once
-        date <- clock::as_date(FITfileR::getMessagesByType(fit_object, "session")$timestamp)
-        week <- as.numeric(strftime(FITfileR::getMessagesByType(fit_object, "session")$timestamp, format = "%W"))
-        time_of_day <- ifelse(
-          (clock::get_hour(FITfileR::getMessagesByType(fit_object, "session")$timestamp) > 4) &
-            (clock::get_hour(FITfileR::getMessagesByType(fit_object, "session")$timestamp) < 13),
-          "Morning",
-          "Evening"
-        )
+      hrr_metrics <- calculate_hrr(hr_data[181:240], resting_hr)
+      rr_data <- extract_rr_data(fit_object, filter_factor)
 
-        # Calculate metrics
+      # Get session data
+      session <- FITfileR::getMessagesByType(fit_object, "session")
+      date <- clock::as_date(session$timestamp)
+      week <- as.numeric(strftime(session$timestamp, format = "%W"))
+
+      hour <- clock::get_hour(session$timestamp)
+      time_of_day <- if (hour > 4 && hour < 13) "Morning" else "Evening"
+
+      # Process if we have enough data
+      if (length(rr_data$laying) >= 2 && length(rr_data$standing) >= 2) {
         laying <- calculate_hrv(rr_data$laying)
         standing <- calculate_hrv(rr_data$standing)
 
-        # Create single row efficiently
         tibble::tibble(
           source_file = file_path,
           date = as.character(date),
@@ -144,193 +282,258 @@ process_fit_file <- function(file_path, filter_factor) {
           time_of_day = time_of_day,
           laying_rmssd = laying$rmssd,
           laying_sdnn = laying$sdnn,
-          laying_hr = round(mean(hr_data[30:150], na.rm = TRUE), digits = 2),
+          laying_hr = round(mean(hr_data[30:150], na.rm = TRUE), 2),
           laying_resting_hr = resting_hr,
           standing_rmssd = standing$rmssd,
           standing_sdnn = standing$sdnn,
-          standing_hr = round(mean(hr_data[220:330], na.rm = TRUE), digits = 2),
-          standing_max_hr = max(hr_data[181:220]),
+          standing_hr = round(mean(hr_data[220:330], na.rm = TRUE), 2),
+          standing_max_hr = max(hr_data[181:220], na.rm = TRUE),
           hrr_60s = hrr_metrics$hrr_60s,
           hrr_relative = hrr_metrics$hrr_relative,
           orthostatic_rise = hrr_metrics$orthostatic_rise,
-          package_version = as.character(packageVersion("hrvester")),
+          package_version = as.character(utils::packageVersion("hrvester")),
           RR_filter = filter_factor,
           activity = FITfileR::getMessagesByType(fit_object, "sport")$name
         )
       } else {
-        tibble::tibble(
-          source_file = file_path,
-          date = as.character(date),
-          week = week,
-          time_of_day = time_of_day,
-          laying_rmssd = NA,
-          laying_sdnn = NA,
-          laying_hr = NA,
-          laying_resting_hr = NA,
-          standing_rmssd = NA,
-          standing_sdnn = NA,
-          standing_hr = NA,
-          standing_max_hr = NA,
-          hrr_60s = NA,
-          hrr_relative = NA,
-          orthostatic_rise = NA,
-          package_version = as.character(packageVersion("hrvester")),
-          RR_filter = filter_factor,
-          activity = FITfileR::getMessagesByType(fit_object, "sport")$name
-        ) # TODO change this to do HR without HRV probably?
+        create_empty_result(file_path, date, week, time_of_day, filter_factor)
       }
     },
     error = function(e) {
-      tibble::tibble(
-        source_file = file_path,
-        date = NA,
-        week = NA,
-        time_of_day = NA,
-        laying_rmssd = NA,
-        laying_sdnn = NA,
-        laying_hr = NA,
-        laying_resting_hr = NA,
-        standing_rmssd = NA,
-        standing_sdnn = NA,
-        standing_hr = NA,
-        standing_max_hr = NA,
-        hrr_60s = NA,
-        hrr_relative = NA,
-        orthostatic_rise = NA,
-        package_version = as.character(packageVersion("hrvester")),
-        RR_filter = filter_factor,
-        activity = NA
-      )
+      create_empty_result(file_path, NA, NA, NA, filter_factor)
     }
+  )
+
+  return(result)
+}
+
+#' Create empty result row
+#'
+#' @description
+#' Helper function to create empty result row with NA values
+#'
+#' @param file_path Source file path
+#' @param date Date of measurement
+#' @param week Week number
+#' @param time_of_day Time of day
+#' @param filter_factor RR filter factor used
+#' @return Tibble with NA values
+#' @keywords internal
+create_empty_result <- function(file_path, date, week, time_of_day, filter_factor) {
+  tibble::tibble(
+    source_file = file_path,
+    date = as.character(date),
+    week = week,
+    time_of_day = time_of_day,
+    laying_rmssd = NA_real_,
+    laying_sdnn = NA_real_,
+    laying_hr = NA_real_,
+    laying_resting_hr = NA_real_,
+    standing_rmssd = NA_real_,
+    standing_sdnn = NA_real_,
+    standing_hr = NA_real_,
+    standing_max_hr = NA_real_,
+    hrr_60s = NA_real_,
+    hrr_relative = NA_real_,
+    orthostatic_rise = NA_real_,
+    package_version = as.character(utils::packageVersion("hrvester")),
+    RR_filter = filter_factor,
+    activity = NA_character_
   )
 }
 
-#' Calculate rolling mean with minimum data requirement
+#' Calculate rolling mean
+#'
+#' @description
+#' Computes rolling mean with minimum data requirements
+#'
 #' @param x Numeric vector
-#' @param window Size of rolling window
-#' @param min_fraction Minimum fraction of non-NA values required (0-1)
+#' @param window Window size
+#' @param min_fraction Minimum fraction of non-NA values required
+#' @return Numeric vector of rolling means
+#' @export
 calculate_robust_ma <- function(x, window = 7, min_fraction = 0.7) {
+  if (!is.numeric(x)) {
+    stop("Input must be numeric")
+  }
+  if (window < 1) {
+    stop("Window size must be positive")
+  }
+  if (min_fraction <= 0 || min_fraction > 1) {
+    stop("min_fraction must be between 0 and 1")
+  }
+
   n <- length(x)
   result <- numeric(n)
   min_obs <- ceiling(window * min_fraction)
 
-  for (i in 1:n) {
+  for (i in seq_len(n)) {
     start_idx <- max(1, i - window + 1)
     window_data <- x[start_idx:i]
 
-    # Only calculate mean if we have enough valid observations
-    if (sum(!is.na(window_data)) >= min_obs) {
-      result[i] <- mean(window_data, na.rm = TRUE)
+    result[i] <- if (sum(!is.na(window_data)) >= min_obs) {
+      mean(window_data, na.rm = TRUE)
     } else {
-      result[i] <- NA
+      NA_real_
     }
   }
 
   return(result)
 }
 
-#' Calculate all moving averages for HRV data
-#' @param data Dataframe containing HRV measurements
+#' Calculate all moving averages
+#'
+#' @description
+#' Adds moving averages and relative changes to HRV data
+#'
+#' @param data Dataframe of HRV measurements
 #' @param window_size Number of days for moving average
 #' @param min_fraction Minimum fraction of data required
 #' @return Dataframe with added moving averages
-calculate_moving_averages <- function(data, window_size = 7, min_fraction = 0.7) {
-  # Ensure data is ordered by date
-  data <- data %>%
-    arrange(date) %>%
-    mutate(
-      # Calculate moving averages
-      rmssd_ma = calculate_robust_ma(laying_rmssd, window_size, min_fraction),
-      resting_hr_ma = calculate_robust_ma(laying_resting_hr, window_size, min_fraction),
-      standing_hr_ma = calculate_robust_ma(standing_hr, window_size, min_fraction),
+#' @export
+#' @importFrom rlang .data
+calculate_moving_averages <- function(
+    data,
+    window_size = 7,
+    min_fraction = 0.7) {
+  if (!is.data.frame(data)) {
+    stop("Input must be a data frame")
+  }
 
-      # Calculate relative changes from baseline
-      rmssd_change = (laying_rmssd - rmssd_ma) / rmssd_ma * 100,
-      hr_change = (laying_resting_hr - resting_hr_ma) / resting_hr_ma * 100
+  required_cols <- c("date", "laying_rmssd", "laying_resting_hr", "standing_hr")
+  if (!all(required_cols %in% names(data))) {
+    stop(
+      "Missing required columns: ",
+      paste(setdiff(required_cols, names(data)), collapse = ", ")
     )
+  }
 
-  return(data)
+  data %>%
+    dplyr::arrange(date) %>%
+    dplyr::mutate(
+      rmssd_ma = calculate_robust_ma(
+        .data$laying_rmssd,
+        .data$window_size,
+        .data$min_fraction
+      ),
+      resting_hr_ma = calculate_robust_ma(
+        .data$laying_resting_hr,
+        .data$window_size,
+        .data$min_fraction
+      ),
+      standing_hr_ma = calculate_robust_ma(
+        .data$standing_hr,
+        .data$window_size,
+        .data$min_fraction
+      ),
+      rmssd_change = (.data$laying_rmssd - .data$rmssd_ma) / .data$rmssd_ma * 100,
+      hr_change = (.data$laying_resting_hr - .data$resting_hr_ma) / .data$resting_hr_ma * 100
+    )
 }
 
-#' Calculate resting heart rate using different methods
+#' Calculate resting heart rate
+#'
+#' @description
+#' Estimates resting heart rate using various methods
+#'
 #' @param hr_data Vector of heart rate values
-#' @param method Method to use ("min_30s", "last_30s", or "lowest_sustained")
-#' @param stability_threshold Allowable HR variation for "sustained" (default 3 bpm)
-#' @param window_size Window size in samples (default 30)
+#' @param method Calculation method to use
+#' @param stability_threshold Allowable HR variation
+#' @param window_size Window size in samples
 #' @return Numeric resting heart rate value
+#' @export
 calculate_resting_hr <- function(
     hr_data,
     method = "lowest_sustained",
     stability_threshold = 3,
     window_size = 30) {
-  # Input validation
   if (is.null(hr_data) || length(hr_data) < window_size) {
     return(NA_real_)
   }
 
   if (method == "last_30s") {
-    # Current method - last window_size seconds of laying position
-    return(mean(hr_data[(length(hr_data) - window_size + 1):length(hr_data)],
-      na.rm = TRUE
-    ))
-  } else if (method == "min_30s") {
-    # Find lowest window
-    window_means <- sapply(1:(length(hr_data) - window_size + 1), function(i) {
-      mean(hr_data[i:(i + window_size - 1)], na.rm = TRUE)
-    })
-    return(min(window_means, na.rm = TRUE))
-  } else if (method == "lowest_sustained") {
-    # Calculate ranges and means for all windows
-    ranges <- numeric(length(hr_data) - window_size + 1)
-    means <- numeric(length(hr_data) - window_size + 1)
+    idx_range <- (length(hr_data) - window_size + 1):length(hr_data)
+    return(mean(hr_data[idx_range], na.rm = TRUE))
+  }
 
-    for (i in 1:(length(hr_data) - window_size + 1)) {
+  if (method == "min_30s") {
+    window_means <- sapply(
+      1:(length(hr_data) - window_size + 1),
+      function(i) mean(hr_data[i:(i + window_size - 1)], na.rm = TRUE)
+    )
+    return(min(window_means, na.rm = TRUE))
+  }
+
+  if (method == "lowest_sustained") {
+    n_windows <- length(hr_data) - window_size + 1
+    ranges <- means <- numeric(n_windows)
+
+    for (i in seq_len(n_windows)) {
       window <- hr_data[i:(i + window_size - 1)]
       ranges[i] <- diff(range(window, na.rm = TRUE))
       means[i] <- mean(window, na.rm = TRUE)
     }
 
-    # Create data frame
     window_df <- data.frame(range = ranges, mean = means)
-
-    # Find stable windows
     stable_windows <- window_df$range <= stability_threshold
 
     if (sum(stable_windows) > 0) {
-      # If we found stable windows, use the lowest one
       return(min(window_df$mean[stable_windows], na.rm = TRUE))
-    } else {
-      # If no stable windows found, gradually increase threshold
-      for (new_threshold in seq(stability_threshold + 1, stability_threshold + 5)) {
-        stable_windows <- window_df$range <= new_threshold
-        if (sum(stable_windows) > 0) {
-          warning(sprintf(
-            "No windows with ≤%dbpm variation found. Using %dbpm threshold instead.",
-            stability_threshold, new_threshold
-          ))
-          return(min(window_df$mean[stable_windows], na.rm = TRUE))
-        }
-      }
-
-      # If still no stable windows, fall back to min_30s method
-      warning(sprintf("No stable windows found. Falling back to min_30s method."))
-      return(calculate_resting_hr(hr_data, method = "min_30s"))
     }
+
+    # Try progressively higher thresholds
+    for (new_threshold in (stability_threshold + 1):(stability_threshold + 5)) {
+      stable_windows <- window_df$range <= new_threshold
+      if (sum(stable_windows) > 0) {
+        warning(sprintf(
+          "No windows with <=%dbpm variation found. Using %dbpm threshold.",
+          stability_threshold,
+          new_threshold
+        ))
+        return(min(window_df$mean[stable_windows], na.rm = TRUE))
+      }
+    }
+
+    warning("No stable windows found. Falling back to min_30s method.")
+    return(calculate_resting_hr(hr_data, method = "min_30s"))
   }
+
+  stop("Invalid method specified. Use 'last_30s', 'min_30s', or 'lowest_sustained'")
 }
 
 #' Calculate Heart Rate Recovery metrics
+#'
+#' @description
+#' Computes various metrics related to heart rate recovery
+#'
 #' @param standing_hr Vector of heart rate values after standing
 #' @param baseline_hr Resting heart rate before standing
-#' @return List of HRR metrics
+#' @return List containing recovery metrics:
+#'   \item{hrr_60s}{Absolute recovery in 60 seconds}
+#'   \item{hrr_relative}{Relative recovery percentage}
+#'   \item{orthostatic_rise}{Initial HR increase}
+#' @export
 calculate_hrr <- function(standing_hr, baseline_hr) {
-  # First 60 seconds after standing
-  hr_peak <- max(standing_hr[1:20], na.rm = TRUE) # Peak HR in first 20s
-  hr_60s <- standing_hr[60] # HR at 60s
+  if (length(standing_hr) < 60) {
+    return(list(
+      hrr_60s = NA_real_,
+      hrr_relative = NA_real_,
+      orthostatic_rise = NA_real_
+    ))
+  }
+
+  # Calculate peak HR in first 20 seconds
+  hr_peak <- max(standing_hr[1:20], na.rm = TRUE)
+  hr_60s <- standing_hr[60]
+
+  # Calculate metrics
+  hrr_60s <- hr_peak - hr_60s
+  hrr_relative <- (hr_peak - hr_60s) / (hr_peak - baseline_hr) * 100
+  orthostatic_rise <- hr_peak - baseline_hr
 
   return(list(
-    hrr_60s = hr_peak - hr_60s, # Absolute recovery in 60s
-    hrr_relative = (hr_peak - hr_60s) / (hr_peak - baseline_hr) * 100, # Relative recovery
-    orthostatic_rise = hr_peak - baseline_hr # Initial HR increase
+    hrr_60s = hrr_60s,
+    hrr_relative = hrr_relative,
+    orthostatic_rise = orthostatic_rise
   ))
 }

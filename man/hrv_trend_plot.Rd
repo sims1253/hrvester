@@ -7,12 +7,15 @@
 hrv_trend_plot(metrics, just_rssme = FALSE)
 }
 \arguments{
-\item{metrics}{A tibble or DF containing the metrics. Output of
+\item{metrics}{A tibble or data frame containing HRV metrics. Output of
 \link{process_fit_directory}}
+
+\item{just_rssme}{Logical indicating whether to focus on RMSSD and resting HR
+metrics. Default: FALSE}
 }
 \value{
-A ggplot2 plot object.
+A ggplot2 plot object
 }
 \description{
-Trend plots of HRV summaries for orthostatic tests
+Creates trend plots of HRV metrics, showing both daily values and moving averages.
 }

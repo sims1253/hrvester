@@ -7,16 +7,23 @@
 hrv_plot(file_path, base = "HR", filter_factor = 0.175)
 }
 \arguments{
-\item{base}{"HR" if x axis should be heart rate or "RR" of x axis should be RR.}
+\item{file_path}{Path to the FIT file to process}
 
-\item{filter_factor}{Used to filter RR values that are 1.x times smaller or
-larger than the last one as suspected false readings.}
+\item{base}{Character indicating the type of data to plot:
+\itemize{
+\item "HR": Heart rate data
+\item "RR": RR interval data
+}}
 
-\item{fit_file_path}{Path to the fit file}
+\item{filter_factor}{Numeric value used to filter RR intervals that are more
+than filter_factor times smaller or larger than the previous value. Helps
+remove suspected false readings. Default: 0.175}
 }
 \value{
-A ggplot2 plot object.
+A ggplot2 plot object
 }
 \description{
-Plot HRV summaries for a single orthostatic test fit file.
+Creates a visualization of heart rate variability (HRV) data from a FIT file.
+The plot can display either heart rate (HR) or RR interval data, with annotations
+showing key metrics.
 }

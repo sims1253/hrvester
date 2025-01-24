@@ -1,7 +1,7 @@
 Package: hrvester
 Type: Package
 Title: Dashboard for orthostatic test data
-Version: 0.2.0.9000
+Version: 0.3.0.9000
 Date: 2024-11-11
 Authors@R:
     person("Maximilian", "Scholz", email = "dev.scholz@mailbox.org",
@@ -19,12 +19,16 @@ Imports:
     FITfileR,
     progressr,
     clock,
-    zoo,
-    patchwork
+    scales,
+    grid,
+    gridExtra,
+    rlang,
+    readr
 Remotes:
-    grimbough/fitFileR
+    grimbough/FITfileR
 Suggests:
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    knitr
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)

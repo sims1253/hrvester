@@ -12,8 +12,11 @@ calculate_hrr(standing_hr, baseline_hr)
 \item{baseline_hr}{Resting heart rate before standing}
 }
 \value{
-List of HRR metrics
+List containing recovery metrics:
+\item{hrr_60s}{Absolute recovery in 60 seconds}
+\item{hrr_relative}{Relative recovery percentage}
+\item{orthostatic_rise}{Initial HR increase}
 }
 \description{
-Calculate Heart Rate Recovery metrics
+Computes various metrics related to heart rate recovery
 }

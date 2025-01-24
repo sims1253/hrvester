@@ -7,11 +7,20 @@
 calculate_trend_direction(values)
 }
 \arguments{
-\item{values}{Numeric vector of values}
+\item{values}{Numeric vector of values to analyze for trend. Should contain at least 2 values.}
 }
 \value{
-Character string describing trend
+Character string describing the trend direction and magnitude:
+\itemize{
+\item "Stable" (abs(slope) < 0.1)
+\item "Slight Increase" (0.1 <= slope <= 0.5)
+\item "Strong Increase" (slope > 0.5)
+\item "Slight Decrease" (-0.5 <= slope < -0.1)
+\item "Strong Decrease" (slope < -0.5)
+}
 }
 \description{
-Helper function to calculate trend direction
+Determines the direction of trends in HRV metrics using linear regression.
+The function fits a linear model to the values and categorizes the slope
+into descriptive trend categories.
 }

@@ -2,17 +2,16 @@
 % Please edit documentation in R/core.R
 \name{get_HR}
 \alias{get_HR}
-\title{Extract HR data from \code{FitFile} object}
+\title{Extract HR data from FIT object}
 \usage{
 get_HR(fit_object)
 }
 \arguments{
-\item{fit_object}{An object of class \code{FitFile}, eg.
-from \code{\link[FITfileR::readFitFile]{FITfileR::readFitFile}}}
+\item{fit_object}{An object of class FitFile}
 }
 \value{
-A vector containing up to the first three minutes of heart rate data.
+Numeric vector of heart rate values
 }
 \description{
-Extract HR data from \code{FitFile} object
+Extracts heart rate data handling both list and data frame formats
 }

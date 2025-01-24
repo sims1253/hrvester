@@ -2,27 +2,18 @@
 % Please edit documentation in R/core.R
 \name{process_fit_file}
 \alias{process_fit_file}
-\title{Process a single FIT file to extract HRV metrics}
+\title{Process a single FIT file}
 \usage{
 process_fit_file(file_path, filter_factor)
 }
 \arguments{
 \item{file_path}{Path to FIT file}
+
+\item{filter_factor}{Numeric value for RR filtering}
 }
 \value{
-Tibble row containing:
-\item{source_file}{Path to processed file}
-\item{date}{Date of measurement}
-\item{time_of_day}{Morning or Evening}
-\item{laying_rmssd}{RMSSD during laying position}
-\item{laying_sdnn}{SDNN during laying position}
-\item{laying_hr}{Mean HR during laying position}
-\item{standing_rmssd}{RMSSD during standing position}
-\item{standing_sdnn}{SDNN during standing position}
-\item{standing_hr}{Mean HR during standing position}
-
-NULL if processing fails
+Tibble containing HRV metrics
 }
 \description{
-Process a single FIT file to extract HRV metrics
+Calculates HRV metrics from a FIT file with error handling
 }

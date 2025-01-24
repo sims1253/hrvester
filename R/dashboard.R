@@ -17,7 +17,9 @@
 #'     \item laying_resting_hr: Resting heart rate
 #'     \item resting_hr_ma: 7-day moving average of resting HR
 #'   }
+#'
 #' @return A patchwork object combining four ggplot2 plots
+#'
 #' @export
 #' @importFrom ggplot2 ggplot aes geom_line geom_ribbon geom_tile geom_smooth scale_color_manual scale_fill_manual labs theme_minimal theme_bw theme element_text scale_y_continuous geom_hline
 #' @importFrom dplyr mutate filter %>%
@@ -48,7 +50,7 @@ plot_hrv_dashboard <- function(data) {
     filter(date < current_day & date >= current_day - 7)
 
   readiness <- analyze_readiness(current_metrics, baseline_metrics)
-  training_rec <- generate_training_recommendations(
+  training_rec <- training_recommendations(
     current_metrics$neural_recovery_score,
     primary_type = "BJJ"
   )
@@ -62,7 +64,7 @@ plot_hrv_dashboard <- function(data) {
       panel.grid.minor = element_blank(),
       legend.position = "none"
     )
-  
+
   # 1. RMSSD Plot
   p1 <- ggplot(data, aes(x = date, group = group)) +
     geom_ribbon(
@@ -148,12 +150,14 @@ plot_hrv_dashboard <- function(data) {
     y = 1:3,
     type = factor(c("Daily", "7-day MA", "Recovery Zones")),
     fill_type = factor(c("Optimal", "Normal", "Caution"),
-                         levels = c("Optimal", "Normal", "Caution"))
+      levels = c("Optimal", "Normal", "Caution")
+    )
   )
 
   legend_plot <- ggplot(legend_data) +
     geom_tile(aes(x = x, y = y, fill = fill_type),
-              color = NA, width = 0.9, height = 0.9) +
+      color = NA, width = 0.9, height = 0.9
+    ) +
     geom_line(aes(x = x, y = y, color = type)) +
     scale_fill_manual(
       values = c(
@@ -277,7 +281,6 @@ plot_weekly_heatmap <- function(data, method = "neural_recovery_score") {
       calculate_moving_averages() %>%
       mutate(
         day_of_week = weekdays(as.Date(date)),
-        # Convert to factor with correct order
         day_of_week = factor(day_of_week, levels = weekday_order),
         week = format(as.Date(date), "%Y-W%V"),
         status = case_when(
@@ -286,7 +289,6 @@ plot_weekly_heatmap <- function(data, method = "neural_recovery_score") {
           rmssd_change >= -10 ~ "Caution",
           TRUE ~ "Warning"
         ),
-        # Convert status to factor with desired order
         status = factor(status, levels = c("Warning", "Caution", "Normal", "Fresh"))
       )
   } else if (method == "neural_recovery_score") {
@@ -294,7 +296,6 @@ plot_weekly_heatmap <- function(data, method = "neural_recovery_score") {
       calculate_neural_recovery() %>%
       mutate(
         day_of_week = weekdays(as.Date(date)),
-        # Convert to factor with correct order
         day_of_week = factor(day_of_week, levels = weekday_order),
         week = format(as.Date(date), "%Y-W%V"),
         status = case_when(
@@ -303,7 +304,6 @@ plot_weekly_heatmap <- function(data, method = "neural_recovery_score") {
           neural_recovery_score >= 40 ~ "Reduced",
           TRUE ~ "Low"
         ),
-        # Convert status to factor with desired order
         status = factor(status, levels = c("Low", "Reduced", "Good", "Fresh"))
       )
   }
@@ -321,8 +321,7 @@ plot_weekly_heatmap <- function(data, method = "neural_recovery_score") {
         "Low" = "#D55E00",
         "Warning" = "#D55E00"
       ),
-      # Legend will follow the factor order defined above
-      guide = guide_legend(reverse = TRUE) # Reverse to show best status at top
+      guide = guide_legend(reverse = TRUE)
     ) +
     labs(
       title = "Weekly Recovery Status",
@@ -360,7 +359,7 @@ plot_bjj_metrics <- function(data) {
     calculate_moving_averages() %>%
     mutate(
       neural_score = (laying_rmssd / rmssd_ma * 50) +
-        (1 - (standing_hr - laying_hr) / 30) * 50 # Normalize to 0-100 scale
+        (1 - (standing_hr - laying_hr) / 30) * 50
     )
 
   ggplot(data, aes(x = as.Date(date))) +

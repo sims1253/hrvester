@@ -2,17 +2,20 @@
 % Please edit documentation in R/core.R
 \name{calculate_robust_ma}
 \alias{calculate_robust_ma}
-\title{Calculate rolling mean with minimum data requirement}
+\title{Calculate rolling mean}
 \usage{
 calculate_robust_ma(x, window = 7, min_fraction = 0.7)
 }
 \arguments{
 \item{x}{Numeric vector}
 
-\item{window}{Size of rolling window}
+\item{window}{Window size}
 
-\item{min_fraction}{Minimum fraction of non-NA values required (0-1)}
+\item{min_fraction}{Minimum fraction of non-NA values required}
+}
+\value{
+Numeric vector of rolling means
 }
 \description{
-Calculate rolling mean with minimum data requirement
+Computes rolling mean with minimum data requirements
 }

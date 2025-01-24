@@ -7,11 +7,36 @@
 calculate_neural_recovery(data, window_size = 7)
 }
 \arguments{
-\item{data}{Dataframe containing HRV measurements}
+\item{data}{Dataframe containing HRV measurements. Should include:
+\itemize{
+\item laying_rmssd (numeric): RMSSD during laying position
+\item laying_resting_hr (numeric): Resting heart rate
+\item rmssd_ma (numeric): Moving average of RMSSD (added by
+calculate_moving_averages)
+\item standing_hr (numeric): Heart rate during standing position
+\item hrr_60s (numeric): Heart rate recovery after 60 seconds
+}}
+
+\item{window_size}{Number of days to use for calculating moving averages
+(default: 7). Used to establish baseline values for comparison.
+Must be a positive integer.}
 }
 \value{
-Dataframe with added neural recovery scores
+Dataframe with added columns:
+\itemize{
+\item rmssd_score (numeric): Score based on RMSSD ratio (0-40 points)
+\item ortho_score (numeric): Score based on orthostatic response (0-30 points)
+\item hrr_score (numeric): Score based on heart rate recovery (0-30 points)
+\item neural_recovery_score (numeric): Combined total score (0-100)
+\item recovery_status (character): Classification based on total score
+}
 }
 \description{
-Calculate full neural recovery score based on BioForce HRV methodology
+This function calculates a comprehensive neural recovery score by combining
+multiple HRV metrics. The score is based on the following components:
+\itemize{
+\item RMSSD (parasympathetic recovery)
+\item Orthostatic response (autonomic balance)
+\item Heart rate recovery (recovery capacity)
+}
 }

@@ -6,31 +6,25 @@
 \usage{
 process_fit_directory(
   dir_path,
-  cache_file = paste0(dir_path, "/", "hrv_cache.csv"),
+  cache_file = file.path(dir_path, "hrv_cache.csv"),
   filter_factor = 0.175,
   clear_cache = FALSE
 )
 }
 \arguments{
-\item{dir_path}{Directory containing FIT files}
+\item{dir_path}{The directory path containing FIT files to process}
 
-\item{cache_file}{Path to cache file}
+\item{cache_file}{Path to the cache file for storing processed data}
+
+\item{filter_factor}{Numeric value (0-1) used to filter RR intervals}
+
+\item{clear_cache}{Logical indicating whether to clear existing cache}
 }
 \value{
-tibble of HRV metrics
+A tibble containing HRV metrics for all processed FIT files
 }
 \description{
-Process directory of FIT files with caching
-}
-\examples{
-\dontrun{
-# Process all FIT files in a directory
-metrics <- process_fit_directory("path/to/fit/files")
-
-# Use custom cache location
-metrics <- process_fit_directory(
-  "path/to/fit/files",
-  cache_file = "custom_cache.csv"
-)
-}
+Processes multiple FIT files from a specified directory, utilizing caching to
+avoid reprocessing unchanged files. This function is designed to be efficient
+by only processing new or updated files since the last run.
 }

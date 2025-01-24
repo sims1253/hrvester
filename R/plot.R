@@ -1,15 +1,24 @@
 #' Plot HRV summaries for a single orthostatic test fit file.
 #'
-#' @param fit_file_path Path to the fit file
-#' @param base "HR" if x axis should be heart rate or "RR" of x axis should be RR.
-#' @param filter_factor Used to filter RR values that are 1.x times smaller or
-#'   larger than the last one as suspected false readings.
+#' Creates a visualization of heart rate variability (HRV) data from a FIT file.
+#' The plot can display either heart rate (HR) or RR interval data, with annotations
+#' showing key metrics.
 #'
-#' @return A ggplot2 plot object.
+#' @param file_path Path to the FIT file to process
+#' @param base Character indicating the type of data to plot:
+#'   \itemize{
+#'     \item "HR": Heart rate data
+#'     \item "RR": RR interval data
+#'   }
+#' @param filter_factor Numeric value used to filter RR intervals that are more
+#'   than filter_factor times smaller or larger than the previous value. Helps
+#'   remove suspected false readings. Default: 0.175
+#'
+#' @return A ggplot2 plot object
+#'
 #' @export
-#'
 #' @importFrom FITfileR readFitFile
-#' @importFrom dplyr '%>%'
+#' @importFrom dplyr "%>%"
 #' @importFrom ggplot2 ggplot geom_line geom_vline scale_x_continuous annotate aes xlab theme_bw ggtitle
 hrv_plot <- function(file_path, base = "HR", filter_factor = 0.175) {
   fit_object <- FITfileR::readFitFile(file_path)
@@ -110,16 +119,19 @@ hrv_plot <- function(file_path, base = "HR", filter_factor = 0.175) {
   return(p)
 }
 
-
-
 #' Trend plots of HRV summaries for orthostatic tests
 #'
-#' @param metrics A tibble or DF containing the metrics. Output of
-#'  \link{process_fit_directory}
+#' Creates trend plots of HRV metrics, showing both daily values and moving averages.
 #'
-#' @return A ggplot2 plot object.
+#' @param metrics A tibble or data frame containing HRV metrics. Output of
+#'   \link{process_fit_directory}
+#' @param just_rssme Logical indicating whether to focus on RMSSD and resting HR
+#'   metrics. Default: FALSE
+#'
+#' @return A ggplot2 plot object
+#'
 #' @export
-#' @importFrom dplyr '%>%' group_by summarise filter across bind_rows as_tibble
+#' @importFrom dplyr "%>%" group_by summarise filter across bind_rows as_tibble
 #' @importFrom ggplot2 ggplot geom_point geom_line geom_hline facet_grid theme_bw aes
 hrv_trend_plot <- function(metrics, just_rssme = FALSE) {
   metrics <- dplyr::select(metrics, !c(source_file, package_version, activity))
@@ -182,7 +194,6 @@ hrv_trend_plot <- function(metrics, just_rssme = FALSE) {
       ) +
       ylab("rMSSD") +
       xlab("Date") +
-      # facet_grid(metric ~ morning, scales = "free_y") +
       theme_bw()
   } else {
     long_metrics %>%
@@ -200,8 +211,17 @@ hrv_trend_plot <- function(metrics, just_rssme = FALSE) {
   }
 }
 
-#' @importFrom ggplot2 ggplot geom_ribbon geom_line scale_color_manual scale_fill_manual theme_minimal labs
+#' Plot HRV trends
+#'
+#' Creates a trend plot of RMSSD values with a moving average and normal range
+#' shading.
+#'
+#' @param data Data frame containing HRV metrics
+#'
+#' @return A ggplot2 plot object
+#'
 #' @export
+#' @importFrom ggplot2 ggplot geom_line geom_ribbon scale_color_manual scale_fill_manual theme_minimal labs
 plot_hrv_trends <- function(data) {
   data %>%
     calculate_moving_averages() %>%
@@ -210,8 +230,8 @@ plot_hrv_trends <- function(data) {
     ggplot2::geom_line(aes(y = rmssd_ma, color = "7-day MA"), size = 1) +
     ggplot2::geom_ribbon(
       aes(
-        ymin = rmssd_ma * 0.9, # 10% below baseline
-        ymax = rmssd_ma * 1.1, # 10% above baseline
+        ymin = rmssd_ma * 0.9,
+        ymax = rmssd_ma * 1.1,
         fill = "Normal Range"
       ),
       alpha = 0.2

@@ -2,7 +2,7 @@
 % Please edit documentation in R/core.R
 \name{calculate_resting_hr}
 \alias{calculate_resting_hr}
-\title{Calculate resting heart rate using different methods}
+\title{Calculate resting heart rate}
 \usage{
 calculate_resting_hr(
   hr_data,
@@ -14,15 +14,15 @@ calculate_resting_hr(
 \arguments{
 \item{hr_data}{Vector of heart rate values}
 
-\item{method}{Method to use ("min_30s", "last_30s", or "lowest_sustained")}
+\item{method}{Calculation method to use}
 
-\item{stability_threshold}{Allowable HR variation for "sustained" (default 3 bpm)}
+\item{stability_threshold}{Allowable HR variation}
 
-\item{window_size}{Window size in samples (default 30)}
+\item{window_size}{Window size in samples}
 }
 \value{
 Numeric resting heart rate value
 }
 \description{
-Calculate resting heart rate using different methods
+Estimates resting heart rate using various methods
 }

@@ -68,6 +68,6 @@ ggsave(
 
 analyze_readiness(tail(metrics, n = 1), tail(metrics, n = 8)[2:7,])
 
-generate_training_recommendations(tail(calculate_neural_recovery(metrics)$neural_recovery_score, n = 1))
+training_recommendations(tail(calculate_neural_recovery(metrics)$neural_recovery_score, n = 1))
 
 tail(metrics, n = 1)

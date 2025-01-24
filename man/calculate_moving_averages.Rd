@@ -2,12 +2,12 @@
 % Please edit documentation in R/core.R
 \name{calculate_moving_averages}
 \alias{calculate_moving_averages}
-\title{Calculate all moving averages for HRV data}
+\title{Calculate all moving averages}
 \usage{
 calculate_moving_averages(data, window_size = 7, min_fraction = 0.7)
 }
 \arguments{
-\item{data}{Dataframe containing HRV measurements}
+\item{data}{Dataframe of HRV measurements}
 
 \item{window_size}{Number of days for moving average}
 
@@ -17,5 +17,5 @@ calculate_moving_averages(data, window_size = 7, min_fraction = 0.7)
 Dataframe with added moving averages
 }
 \description{
-Calculate all moving averages for HRV data
+Adds moving averages and relative changes to HRV data
 }
