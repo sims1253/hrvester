@@ -186,7 +186,7 @@ test_that("calculate_neural_recovery validates input correctly", {
 
   # Test negative window
   test_data <- data.frame(
-    date = dates,
+    date = seq(as.Date("2025-01-01"), by = "day", length.out = 14),
     laying_rmssd = c(rep(50, 7), 50, 45, 55, 40, 60, 48, 52), # Last 7 days vary
     laying_resting_hr = c(rep(60, 7), 60, 65, 58, 70, 62, 59, 61),
     standing_hr = c(rep(85, 7), 85, 90, 80, 95, 88, 83, 86),

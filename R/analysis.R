@@ -138,6 +138,7 @@ analyze_readiness <- function(current_metrics, baseline_metrics) {
 #'     \item 7-day trend analysis for RMSSD and heart rate
 #'   }
 #' @importFrom dplyr filter %>%
+#' @importFrom utils head tail
 #' @export
 generate_daily_report <- function(data) {
   # Input validation

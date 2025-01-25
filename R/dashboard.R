@@ -21,7 +21,7 @@
 #' @return A patchwork object combining four ggplot2 plots
 #'
 #' @export
-#' @importFrom ggplot2 ggplot aes geom_line geom_ribbon geom_tile geom_smooth scale_color_manual scale_fill_manual labs theme_minimal theme_bw theme element_text scale_y_continuous geom_hline
+#' @importFrom ggplot2 ggplot aes geom_line geom_ribbon geom_tile geom_smooth scale_color_manual scale_fill_manual labs theme_minimal theme_bw theme element_text scale_y_continuous geom_hline theme_void
 #' @importFrom dplyr mutate filter %>%
 #' @importFrom stats loess
 #' @importFrom scales seq_gradient_pal

@@ -1,7 +1,7 @@
 Package: hrvester
 Type: Package
 Title: Dashboard for orthostatic test data
-Version: 0.3.0.9000
+Version: 0.3.1.9000
 Date: 2024-11-11
 Authors@R:
     person("Maximilian", "Scholz", email = "dev.scholz@mailbox.org",

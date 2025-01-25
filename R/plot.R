@@ -24,7 +24,7 @@ hrv_plot <- function(file_path, base = "HR", filter_factor = 0.175) {
   fit_object <- FITfileR::readFitFile(file_path)
 
   # Extract RR intervals
-  RR <- extract_rr_intervals(
+  RR <- extract_rr_data(
     fit_object = fit_object,
     filter_factor = filter_factor
   )
