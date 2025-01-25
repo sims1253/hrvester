@@ -35,7 +35,7 @@ VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 NeedsCompilation: no
-URL: https://github.com/sims1253/hrvester
+URL: https://github.com/sims1253/hrvester, https://sims1253.github.io/hrvester/
 BugReports: https://github.com/sims1253/hrvester/issues
 Description: An (eventually) interactive dashboard application to analyze .fit
     files of orthostatic tests.
