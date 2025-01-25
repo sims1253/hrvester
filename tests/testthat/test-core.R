@@ -1,7 +1,7 @@
-library(testthat)
 library(mockery)
 library(FITfileR)
 library(dplyr)
+
 
 # Define all required generic functions
 setGeneric("hrv", function(object) standardGeneric("hrv"))

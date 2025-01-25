@@ -28,7 +28,8 @@ Remotes:
     grimbough/FITfileR
 Suggests:
     testthat (>= 3.0.0),
-    knitr
+    knitr,
+    mockery
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)
