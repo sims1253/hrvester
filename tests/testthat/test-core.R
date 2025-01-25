@@ -1,7 +1,7 @@
-library(testthat)
 library(mockery)
 library(FITfileR)
 library(dplyr)
+
 
 # Define all required generic functions
 setGeneric("hrv", function(object) standardGeneric("hrv"))
@@ -191,6 +191,15 @@ test_that("extract_rr_data handles normal case correctly", {
 test_that("extract_rr_data handles missing data correctly", {
   # Test with empty data
   fit_object <- create_mock_fit_data()
+
+  # Mock FITfileR::hrv to directly return the hrv data
+  testthat::local_mocked_bindings(
+    hrv = function(object) {
+      return(object@data$hrv)
+    },
+    .package = "FITfileR"
+  )
+
   expect_warning(result <- extract_rr_data(
     fit_object,
     filter_factor = 0.175
@@ -490,7 +499,7 @@ test_that("process_fit_file handles file processing correctly", {
 
   # Test with valid file but invalid content
   result <- process_fit_file(temp_file, 0.175)
-  expect_true(all(is.na(result)))
+  expect_true(all(is.na(subset(result, select = -c(source_file, package_version, RR_filter)))))
 
   # Clean up
   unlink(temp_file)

@@ -1,3 +1,5 @@
+library(dplyr)
+
 # Helper function to create temporary directory with test files
 create_test_environment <- function() {
   # Create temporary directory

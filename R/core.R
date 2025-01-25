@@ -413,18 +413,18 @@ calculate_moving_averages <- function(
     dplyr::mutate(
       rmssd_ma = calculate_robust_ma(
         .data$laying_rmssd,
-        .data$window_size,
-        .data$min_fraction
+        window_size,
+        min_fraction
       ),
       resting_hr_ma = calculate_robust_ma(
         .data$laying_resting_hr,
-        .data$window_size,
-        .data$min_fraction
+        window_size,
+        min_fraction
       ),
       standing_hr_ma = calculate_robust_ma(
         .data$standing_hr,
-        .data$window_size,
-        .data$min_fraction
+        window_size,
+        min_fraction
       ),
       rmssd_change = (.data$laying_rmssd - .data$rmssd_ma) / .data$rmssd_ma * 100,
       hr_change = (.data$laying_resting_hr - .data$resting_hr_ma) / .data$resting_hr_ma * 100

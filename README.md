@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![R-CMD-check](https://github.com/sims1253/hrvester/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sims1253/hrvester/actions)
-[![codecov](https://codecov.io/gh/sims1253/hrvester/graph/badge.svg?token=RUcQo5iwgn)](https://codecov.io/gh/sims1253/hrvester)
+[![Codecov test coverage](https://codecov.io/gh/sims1253/hrvester/graph/badge.svg)](https://app.codecov.io/gh/sims1253/hrvester)
 
 <img src="https://github.com/sims1253/hrvester/blob/master/example/hrv_dashboard.svg?raw=true" width="800" alt="HRV Dashboard Preview">
 
