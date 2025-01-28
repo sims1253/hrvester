@@ -5,7 +5,7 @@ on:
     branches: [master]
   pull_request:
 
-name: R-CMD-check.yaml
+name: R-CMD-check
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
