@@ -1,18 +1,19 @@
-# hrvester - Athlete-Centric HRV Analysis Toolkit
+# hrvester <a href="https://sims1253.github.io/hrvester/"><img src="man/figures/logo.png" align="right" height="120" alt="hrvester website" /></a>
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![R-CMD-check](https://github.com/sims1253/hrvester/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sims1253/hrvester/actions)
+[![R-CMD-check](https://github.com/sims1253/hrvester/actions/workflows/R-CMD-check/badge.svg)](https://github.com/sims1253/hrvester/actions)
+[![Actions Status](https://github.com/sims1253/hrvester/workflows/test-coverage/badge.svg)](https://github.com/sims1253/hrvester/actions)
 [![Codecov test coverage](https://codecov.io/gh/sims1253/hrvester/graph/badge.svg)](https://app.codecov.io/gh/sims1253/hrvester)
 
-<img src="https://github.com/sims1253/hrvester/blob/master/example/hrv_dashboard.svg?raw=true" width="800" alt="HRV Dashboard Preview">
-
-A high-performance toolkit for sports physiology analysis, providing:
+A toolkit for sports physiology analysis, providing:
 
 - **Orthostatic Test Processing** - Full pipeline from FIT files to readiness scores
 - **Neural Recovery Metrics** - BioForce-inspired composite scoring
 - **BJJ-Specific Analytics** - Grappling-specific training recommendations
 - **Automated Reporting** - Daily PDF/HTML reports with training guidance
 - **Dashboard Visualization** - Interactive trend monitoring
+
+<img src="https://github.com/sims1253/hrvester/blob/master/example/hrv_dashboard.svg?raw=true" width="800" alt="HRV Dashboard Preview">
 
 ## Features
 

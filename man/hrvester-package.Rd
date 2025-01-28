@@ -22,6 +22,7 @@ Focuses on orthostatic test analysis (laying to standing measurements).
 Useful links:
 \itemize{
   \item \url{https://github.com/sims1253/hrvester}
+  \item \url{https://sims1253.github.io/hrvester/}
   \item Report bugs at \url{https://github.com/sims1253/hrvester/issues}
 }
 
