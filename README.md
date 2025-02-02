@@ -109,9 +109,14 @@ If using in research, please cite:
 - [ ] Update test files to match new structure
 - [ ] Add tests for edge cases
 - [ ] Verify test coverage remains high
+- [ ] Unify cache and data templates for tests
 
 ### Phase 2: Error Handling Enhancement
 **Target: v0.5.0**
+
+#### Unify Data Representation
+- [ ] Unify result and cache templates
+- [ ] Document the data format
 
 #### Error System Implementation
 - [ ] Define standard error types
@@ -133,7 +138,7 @@ If using in research, please cite:
 **Target: v0.6.0**
 
 #### Public API
-- [ ] Define official public API
+- [ ] FInalize official public API
 - [ ] Mark internal functions with appropriate naming
 - [ ] Document API stability guarantees
 - [ ] Create API documentation
