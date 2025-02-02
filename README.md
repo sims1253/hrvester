@@ -1,8 +1,8 @@
 # hrvester <a href="https://sims1253.github.io/hrvester/"><img src="man/figures/logo.png" align="right" height="120" alt="hrvester website" /></a>
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![R-CMD-check](https://github.com/sims1253/hrvester/actions/workflows/R-CMD-check/badge.svg)](https://github.com/sims1253/hrvester/actions)
-[![Actions Status](https://github.com/sims1253/hrvester/workflows/test-coverage/badge.svg)](https://github.com/sims1253/hrvester/actions)
+[![R-CMD-check](https://github.com/sims1253/hrvester/workflows/R-CMD-check/badge.svg)](https://github.com/sims1253/hrvester/actions)
+[![Actions Status](https://github.com/sims1253/hrvester/workflows/Tests/badge.svg)](https://github.com/sims1253/hrvester/actions)
 [![Codecov test coverage](https://codecov.io/gh/sims1253/hrvester/graph/badge.svg)](https://app.codecov.io/gh/sims1253/hrvester)
 
 A toolkit for sports physiology analysis, providing:
