@@ -38,7 +38,10 @@ cache_definition <- function() {
     standing_max_hr = numeric(),
     package_version = character(),
     RR_filter = numeric(),
-    activity = character()
+    activity = character(),
+    hrr_60s = numeric(),
+    hrr_relative = numeric(),
+    orthostatic_rise = numeric() 
   )
 }
 
@@ -151,134 +154,50 @@ safe_file_operation <- function(operation, ...) {
   )
 }
 
-#' Process directory of FIT files with caching
-#'
-#' Processes multiple FIT files from a specified directory, utilizing caching to
-#' avoid reprocessing unchanged files. This function is designed to be efficient
-#' by only processing new or updated files since the last run.
-#'
-#' @param dir_path The directory path containing FIT files to process
-#' @param cache_file Path to the cache file for storing processed data
-#' @param filter_factor Numeric value (0-1) used to filter RR intervals
-#' @param clear_cache Logical indicating whether to clear existing cache
-#'
-#' @return A tibble containing HRV metrics for all processed FIT files
-#' @export
-process_fit_directory <- function(
-    dir_path,
-    cache_file = file.path(dir_path, "hrv_cache.csv"),
-    filter_factor = 0.175,
-    clear_cache = FALSE) {
-  # Validate inputs
-  validate_inputs(dir_path, cache_file, filter_factor, clear_cache)
+load_cache <- function(cache_file) {
+  tryCatch(
+    {
+      # Get column types from cache_definition
+      template <- cache_definition()
+      col_types <- readr::cols(.default = readr::col_guess())
 
-  # Get list of FIT files
-  fit_files <- list.files(dir_path, pattern = "\\.fit$", full.names = TRUE)
-  if (length(fit_files) == 0) {
-    warning("No FIT files found in directory")
-    return(cache_definition())
-  }
-
-  # Load or initialize cache
-  cached_data <- if (file.exists(cache_file) && !clear_cache) {
-    tryCatch(
-      {
-        # Get column types from cache_definition
-        template <- cache_definition()
-        col_types <- readr::cols(.default = readr::col_guess())
-
-        # Explicitly set column types based on template
-        for (col_name in names(template)) {
-          col_types[[col_name]] <- switch(class(template[[col_name]]),
-            "character" = readr::col_character(),
-            "numeric" = readr::col_double(),
-            readr::col_guess()
-          )
-        }
-
-        # First check if file is valid CSV
-        if (length(readLines(cache_file)) < 2) { # Need at least header + one row
-          warning("Invalid cache file structure, creating new cache")
-          return(cache_definition())
-        }
-
-        # Attempt to read the file
-        data <- readr::read_csv2(
-          cache_file,
-          show_col_types = FALSE,
-          col_types = col_types
+      # Explicitly set column types based on template
+      for (col_name in names(template)) {
+        col_types[[col_name]] <- switch(class(template[[col_name]]),
+          "character" = readr::col_character(),
+          "numeric" = readr::col_double(),
+          readr::col_guess()
         )
-
-        # Check if we have all required columns
-        if (!all(names(template) %in% names(data))) {
-          warning("Cache file missing required columns, creating new cache")
-          return(cache_definition())
-        }
-
-        # Ensure date is character
-        data$date <- as.character(data$date)
-
-        validate_cache_structure(data)
-        data
-      },
-      error = function(e) {
-        warning(sprintf("Invalid cache file, creating new cache: %s", conditionMessage(e)))
-        cache_definition()
       }
-    )
-  } else {
-    cache_definition()
-  }
 
-  # Find files to process
-  new_files <- setdiff(fit_files, cached_data$source_file)
-  outdated_entries <- cached_data %>%
-    dplyr::filter(
-      package_version != utils::packageVersion("hrvester") |
-        RR_filter != filter_factor
-    ) %>%
-    dplyr::pull(source_file)
+      # First check if file is valid CSV
+      if (length(readLines(cache_file)) < 2) { # Need at least header + one row
+        warning("Invalid cache file structure, creating new cache")
+        return(cache_definition())
+      }
 
-  files_to_process <- unique(c(new_files, outdated_entries))
+      # Attempt to read the file
+      data <- readr::read_csv2(
+        cache_file,
+        show_col_types = FALSE,
+        col_types = col_types
+      )
 
-  if (length(files_to_process) > 0) {
-    # Process files
-    message(sprintf("Processing %d files...", length(files_to_process)))
-    p <- progressr::progressor(along = files_to_process)
+      # Check if we have all required columns
+      if (!all(names(template) %in% names(data))) {
+        warning("Cache file missing required columns, creating new cache")
+        return(cache_definition())
+      }
 
-    new_data <- furrr::future_map_dfr(
-      files_to_process,
-      function(file_path) {
-        result <- process_fit_file(file_path, filter_factor = filter_factor)
-        p()
-        return(result)
-      },
-      .options = furrr::furrr_options(seed = TRUE)
-    )
+      # Ensure date is character
+      data$date <- as.character(data$date)
 
-    # Remove outdated entries and combine data
-    cached_data <- cached_data %>%
-      dplyr::filter(!source_file %in% outdated_entries)
-
-    all_data <- dplyr::bind_rows(cached_data, new_data) %>%
-      dplyr::arrange(date, desc(time_of_day))
-
-    # Save updated cache atomically
-    temp_file <- tempfile(fileext = ".csv")
-    safe_file_operation(
-      readr::write_csv2,
-      all_data,
-      temp_file
-    )
-    safe_file_operation(
-      file.copy,
-      temp_file,
-      cache_file
-    )
-
-    return(all_data)
-  } else {
-    message("No new or outdated files to process")
-    return(cached_data)
-  }
+      validate_cache_structure(data)
+      data
+    },
+    error = function(e) {
+      warning(sprintf("Invalid cache file, creating new cache: %s", conditionMessage(e)))
+      cache_definition()
+    }
+  )
 }

@@ -15,3 +15,4 @@ Numeric vector of heart rate values
 \description{
 Extracts heart rate data handling both list and data frame formats
 }
+\keyword{internal}
