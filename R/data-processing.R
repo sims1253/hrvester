@@ -33,10 +33,10 @@ extract_rr_data <- function(
     filter_factor = 0.15,
     laying_time = 180,
     standing_time = 180,
-    transition_buffer = 5) {
+    transition_buffer = 20) {
   # Input validation with descriptive errors
   validate_fit_object(fit_object)
-  
+
   # Validate numeric parameters
   if (!is.numeric(filter_factor) || filter_factor <= 0 || filter_factor >= 1) {
     stop("filter_factor must be between 0 and 1")
@@ -50,12 +50,12 @@ extract_rr_data <- function(
   if (!is.numeric(transition_buffer) || transition_buffer < 0) {
     stop("transition_buffer must be non-negative")
   }
-  
+
   # Validate transition buffer relative to measurement times
   if (transition_buffer >= min(laying_time, standing_time) / 2) {
     warning("transition_buffer must be less than half of the shortest measurement phase")
   }
-  
+
   # Validate reasonable ratio between laying and standing times
   time_ratio <- laying_time / standing_time
   if (time_ratio < 0.5 || time_ratio > 2) {
@@ -70,7 +70,7 @@ extract_rr_data <- function(
   }
 
   # Extract raw RR intervals
-  hrv_data <- dplyr::filter(hrv_data_check, .data$time < 3) # remove the random 65.5 values
+  hrv_data <- dplyr::filter(hrv_data_check, .data$time != 65.535) # remove the random 65.5 values
   if (nrow(hrv_data) == 0) {
     warning("Empty HRV data in FIT file")
     return(list(laying = numeric(), standing = numeric(), quality_metrics = numeric()))
@@ -98,69 +98,60 @@ extract_rr_data <- function(
 
   # Initialize filtered intervals vector
   filtered_intervals <- numeric(length(rr_intervals))
+  valid_intervals <- numeric(length(rr_intervals))
   filtered_intervals[1] <- rr_intervals[1]
   n_filtered <- 1
 
-  # Apply adaptive filtering with phase-specific thresholds
   phase_factors <- list(
-    laying = filter_factor * 1.3, # Up to ~20% variation for RSA
-    transition = filter_factor * 2.0, # Up to ~30% during transition
-    standing = filter_factor * 0.8 # ~12% standing (less RSA)
+    laying = filter_factor * 0.9,
+    transition = filter_factor * 2,
+    standing = filter_factor * 1.2
   )
 
+  factors <- case_when(
+    cumsum(rr_intervals) <= laying_time ~ phase_factors$laying,
+    cumsum(rr_intervals) <= laying_time + transition_buffer ~ phase_factors$transition,
+    .default = phase_factors$standing
+  )
+
+  kept_rr <- numeric(length(rr_intervals))
+  valid_rr <- numeric(length(rr_intervals))
   for (i in 2:length(rr_intervals)) {
-    # Determine current phase based on cumulative time
-    cum_time <- sum(filtered_intervals[1:n_filtered])
-    current_factor <- if (cum_time < laying_time - transition_buffer) {
-      phase_factors$laying
-    } else if (cum_time < laying_time + transition_buffer) {
-      phase_factors$transition
+    reference <- 0.2 * median(
+      rr_intervals[max(i - 6, 0):max(i - 1, 1)],
+      na.rm = TRUE
+    ) +
+      0.8 * case_when(
+        sum(rr_intervals[1:i]) < 180 ~ mean(rr_intervals[1:180]),
+        .default = mean(rr_intervals[181:length(rr_intervals)])
+      )
+    if (rr_intervals[i] > reference * 1 - factors[i] &&
+      rr_intervals[i] < reference * 1 + factors[i]) {
+      kept_rr[i] <- TRUE
     } else {
-      phase_factors$standing
-    }
-
-    # Use last valid interval as reference
-    reference <- filtered_intervals[n_filtered]
-    current <- rr_intervals[i]
-
-    # Calculate phase-specific bounds
-    lower_bound <- reference * (1 - current_factor)
-    upper_bound <- reference * (1 + current_factor)
-
-    # Apply filter
-    if (current >= lower_bound && current <= upper_bound) {
-      n_filtered <- n_filtered + 1
-      filtered_intervals[n_filtered] <- current
+      kept_rr[i] <- FALSE
     }
   }
 
-  # Trim unused space
-  filtered_intervals <- filtered_intervals[1:n_filtered]
-
-  # Calculate cumulative times
-  cumulative_times <- cumsum(filtered_intervals)
 
   # Calculate position indices with transition buffer
-  laying_end <- max(which(cumulative_times <= (laying_time - transition_buffer)))
-  standing_start <- min(which(cumulative_times >= (laying_time + transition_buffer)))
-  standing_end <- max(which(cumulative_times <= (laying_time + standing_time)))
-
-  # Validate indices
-  if (is.infinite(laying_end) || is.infinite(standing_start) ||
-    is.infinite(standing_end) || laying_end >= standing_start ||
-    standing_start > standing_end) {
-    warning("Invalid position transitions detected")
-    return(list(laying = numeric(), standing = numeric()))
-  }
-
-  # Apply physiological quality checks
-  laying_intervals <- filtered_intervals[1:laying_end]
-  standing_intervals <- filtered_intervals[standing_start:standing_end]
+  total_time <- sum(rr_intervals)
+  transition_index <- which.max(cumsum(rr_intervals) > total_time / 2)
+  laying_intervals <- rr_intervals[
+    1:transition_index
+  ][
+    as.logical(kept_rr)[
+      1:transition_index
+    ]
+  ]
+  standing_intervals <- rr_intervals[(transition_index + 1):length(rr_intervals)][
+    as.logical(kept_rr)[(transition_index + 1):length(rr_intervals)]
+  ]
 
   # Validate minimum data points per phase
-  min_required_points <- 30  # At least 30 beats per phase
-  if (length(laying_intervals) < min_required_points || 
-      length(standing_intervals) < min_required_points) {
+  min_required_points <- 30 # At least 30 beats per phase
+  if (length(laying_intervals) < min_required_points ||
+    length(standing_intervals) < min_required_points) {
     warning("Insufficient number of valid intervals in one or both phases")
     return(list(laying = numeric(), standing = numeric()))
   }
@@ -218,10 +209,10 @@ get_HR <- function(fit_object) {
   validate_fit_object(fit_object)
 
   HR <- FITfileR::records(fit_object)
-  
+
   # Validate records exist
-  if (is.null(HR) || (is.data.frame(HR) && nrow(HR) == 0) || 
-      (is.list(HR) && length(HR) == 0)) {
+  if (is.null(HR) || (is.data.frame(HR) && nrow(HR) == 0) ||
+    (is.list(HR) && length(HR) == 0)) {
     stop("No heart rate records found in FIT file")
   }
 
@@ -237,13 +228,13 @@ get_HR <- function(fit_object) {
   if (is.null(HR) || length(HR) == 0) {
     stop("No heart rate data found in records")
   }
-  
+
   # Check for missing/NA values
   na_count <- sum(is.na(HR))
   if (na_count > 0) {
     warning(sprintf("Found %d missing heart rate values", na_count))
   }
-  
+
   # Validate physiological ranges (30-220 bpm)
   invalid_hr <- HR < 30 | HR > 220
   if (any(invalid_hr, na.rm = TRUE)) {
@@ -257,7 +248,7 @@ get_HR <- function(fit_object) {
   HR <- HR[1:min(360, length(HR))]
 
   # Ensure minimum data points
-  if (length(HR) < 30) {  # At least 30 seconds of data
+  if (length(HR) < 30) { # At least 30 seconds of data
     warning("Insufficient heart rate data points")
   }
 
@@ -270,7 +261,7 @@ get_HR <- function(fit_object) {
 #' consistent error handling across the package when reading FIT files.
 #'
 #' @param file_path Character string specifying the path to the FIT file
-#' 
+#'
 #' @return An object of class FitFile
 #'
 #' @examples
@@ -284,26 +275,26 @@ read_fit_file <- function(file_path) {
   if (!is.character(file_path) || length(file_path) != 1) {
     stop("file_path must be a single character string")
   }
-  
+
   if (!file.exists(file_path)) {
     stop("File does not exist: ", file_path)
   }
-  
+
   # Validate file extension
   if (!grepl("\\.fit$", file_path, ignore.case = TRUE)) {
     stop("File must have .fit extension: ", file_path)
   }
-  
+
   # Check file size
   if (file.size(file_path) == 0) {
     stop("File is empty: ", file_path)
   }
-  
+
   # Check file permissions
   if (!file.access(file_path, mode = 4) == 0) {
     stop("File is not readable: ", file_path)
   }
-  
+
   tryCatch(
     FITfileR::readFitFile(file_path),
     error = function(e) {
@@ -337,43 +328,43 @@ read_fit_file <- function(file_path) {
 extract_session_data <- function(fit_object) {
   # Input validation
   validate_fit_object(fit_object)
-  
+
   # Get session data with validation
   session <- FITfileR::getMessagesByType(fit_object, "session")
   if (is.null(session) || length(session) == 0) {
     stop("No session data found in FIT file")
   }
-  
+
   # Validate timestamp presence
   if (is.null(session$timestamp)) {
     stop("No timestamp found in session data")
   }
-  
+
   # Validate timestamp format
   if (!inherits(session$timestamp, c("POSIXct", "POSIXt"))) {
     stop("Invalid timestamp format in session data")
   }
-  
+
   date <- clock::as_date(session$timestamp)
   week <- as.numeric(strftime(session$timestamp, format = "%W"))
-  
+
   # Validate date conversion
   if (is.na(date)) {
     stop("Failed to convert timestamp to date")
   }
-  
+
   # Validate week number
   if (is.na(week) || week < 0 || week > 53) {
     stop("Invalid week number calculated from timestamp")
   }
-  
+
   hour <- clock::get_hour(session$timestamp)
   if (is.na(hour)) {
     stop("Failed to extract hour from timestamp")
   }
-  
+
   time_of_day <- if (hour >= 4 && hour < 13) "Morning" else "Evening"
-  
+
   list(
     date = date,
     week = week,
@@ -391,8 +382,8 @@ extract_session_data <- function(fit_object) {
 #' @return Tibble containing HRV metrics
 #' @export
 process_fit_file <- function(file_path, filter_factor) {
-  if (!is.numeric(filter_factor) || length(filter_factor) != 1 || 
-      filter_factor < 0.1 || filter_factor > 0.3) {
+  if (!is.numeric(filter_factor) || length(filter_factor) != 1 ||
+    filter_factor < 0.1 || filter_factor > 0.3) {
     stop("filter_factor must be a single numeric value between 0.1 and 0.3")
   }
 
@@ -411,7 +402,7 @@ process_fit_file <- function(file_path, filter_factor) {
       rr_data <- extract_rr_data(fit_object, filter_factor)
 
       # Get session data
-      session = extract_session_data(fit_object = fit_object)
+      session <- extract_session_data(fit_object = fit_object)
 
       # Process if we have enough data
       if (length(rr_data$laying) >= 2 && length(rr_data$standing) >= 2) {
@@ -500,76 +491,76 @@ create_empty_result <- function(file_path, date, week, time_of_day, filter_facto
 #' @return A tibble containing HRV metrics for all processed FIT files
 #' @export
 process_fit_directory <- function(
-  dir_path,
-  cache_file = file.path(dir_path, "hrv_cache.csv"),
-  filter_factor = 0.175,
-  clear_cache = FALSE) {
-# Validate inputs
-validate_inputs(dir_path, cache_file, filter_factor, clear_cache)
+    dir_path,
+    cache_file = file.path(dir_path, "hrv_cache.csv"),
+    filter_factor = 0.175,
+    clear_cache = FALSE) {
+  # Validate inputs
+  validate_inputs(dir_path, cache_file, filter_factor, clear_cache)
 
-# Get list of FIT files
-fit_files <- list.files(dir_path, pattern = "\\.fit$", full.names = TRUE)
-if (length(fit_files) == 0) {
-  warning("No FIT files found in directory")
-  return(cache_definition())
-}
+  # Get list of FIT files
+  fit_files <- list.files(dir_path, pattern = "\\.fit$", full.names = TRUE)
+  if (length(fit_files) == 0) {
+    warning("No FIT files found in directory")
+    return(cache_definition())
+  }
 
-# Load or initialize cache
-cached_data <- if (file.exists(cache_file) && !clear_cache) {
-  load_cache(cache_file = cache_file)
-} else {
-  cache_definition()
-}
+  # Load or initialize cache
+  cached_data <- if (file.exists(cache_file) && !clear_cache) {
+    load_cache(cache_file = cache_file)
+  } else {
+    cache_definition()
+  }
 
-# Find files to process
-new_files <- setdiff(fit_files, cached_data$source_file)
-outdated_entries <- cached_data %>%
-  dplyr::filter(
-    package_version != utils::packageVersion("hrvester") |
-      RR_filter != filter_factor
-  ) %>%
-  dplyr::pull(source_file)
+  # Find files to process
+  new_files <- setdiff(fit_files, cached_data$source_file)
+  outdated_entries <- cached_data %>%
+    dplyr::filter(
+      package_version != utils::packageVersion("hrvester") |
+        RR_filter != filter_factor
+    ) %>%
+    dplyr::pull(source_file)
 
-files_to_process <- unique(c(new_files, outdated_entries))
+  files_to_process <- unique(c(new_files, outdated_entries))
 
-if (length(files_to_process) > 0) {
-  # Process files
-  message(sprintf("Processing %d files...", length(files_to_process)))
-  p <- progressr::progressor(along = files_to_process)
+  if (length(files_to_process) > 0) {
+    # Process files
+    message(sprintf("Processing %d files...", length(files_to_process)))
+    p <- progressr::progressor(along = files_to_process)
 
-  new_data <- furrr::future_map_dfr(
-    files_to_process,
-    function(file_path) {
-      result <- process_fit_file(file_path, filter_factor = filter_factor)
-      p()
-      return(result)
-    },
-    .options = furrr::furrr_options(seed = TRUE)
-  )
+    new_data <- furrr::future_map_dfr(
+      files_to_process,
+      function(file_path) {
+        result <- process_fit_file(file_path, filter_factor = filter_factor)
+        p()
+        return(result)
+      },
+      .options = furrr::furrr_options(seed = TRUE)
+    )
 
-  # Remove outdated entries and combine data
-  cached_data <- cached_data %>%
-    dplyr::filter(!source_file %in% outdated_entries)
+    # Remove outdated entries and combine data
+    cached_data <- cached_data %>%
+      dplyr::filter(!source_file %in% outdated_entries)
 
-  all_data <- dplyr::bind_rows(cached_data, new_data) %>%
-    dplyr::arrange(date, desc(time_of_day))
+    all_data <- dplyr::bind_rows(cached_data, new_data) %>%
+      dplyr::arrange(date, desc(time_of_day))
 
-  # Save updated cache atomically
-  temp_file <- tempfile(fileext = ".csv")
-  safe_file_operation(
-    readr::write_csv2,
-    all_data,
-    temp_file
-  )
-  safe_file_operation(
-    file.copy,
-    temp_file,
-    cache_file
-  )
+    # Save updated cache atomically
+    temp_file <- tempfile(fileext = ".csv")
+    safe_file_operation(
+      readr::write_csv2,
+      all_data,
+      temp_file
+    )
+    safe_file_operation(
+      file.copy,
+      temp_file,
+      cache_file
+    )
 
-  return(all_data)
-} else {
-  message("No new or outdated files to process")
-  return(cached_data)
-}
+    return(all_data)
+  } else {
+    message("No new or outdated files to process")
+    return(cached_data)
+  }
 }

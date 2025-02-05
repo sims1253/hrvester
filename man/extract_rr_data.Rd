@@ -9,7 +9,7 @@ extract_rr_data(
   filter_factor = 0.15,
   laying_time = 180,
   standing_time = 180,
-  transition_buffer = 5
+  transition_buffer = 20
 )
 }
 \arguments{

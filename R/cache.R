@@ -41,7 +41,7 @@ cache_definition <- function() {
     activity = character(),
     hrr_60s = numeric(),
     hrr_relative = numeric(),
-    orthostatic_rise = numeric() 
+    orthostatic_rise = numeric()
   )
 }
 
