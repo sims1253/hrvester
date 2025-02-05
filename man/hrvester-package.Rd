@@ -4,7 +4,7 @@
 \name{hrvester-package}
 \alias{hrvester}
 \alias{hrvester-package}
-\title{ostdashr: Simple Heart Rate Variability Analysis}
+\title{hrvester: Simple Heart Rate Variability Analysis}
 \description{
 Provides tools for analyzing Heart Rate Variability (HRV) from FIT files.
 Focuses on orthostatic test analysis (laying to standing measurements).
