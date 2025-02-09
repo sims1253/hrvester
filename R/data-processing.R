@@ -368,7 +368,8 @@ extract_session_data <- function(fit_object) {
   list(
     date = date,
     week = week,
-    time_of_day = time_of_day
+    time_of_day = time_of_day,
+    duration = session$total_elapsed_time
   )
 }
 
