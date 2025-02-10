@@ -270,11 +270,11 @@ test_that("extract_rr_data handles transition period correctly", {
     .package = "FITfileR"
   )
 
-  expect_warning(result <- extract_rr_data(
+  result <- extract_rr_data(
     fit_object,
     filter_factor = 0.175,
     transition_buffer = 20
-  ))
+  )
 
   # Verify transition period was excluded
   expect_true(all(result$laying < max(laying_rr) * 1.1))

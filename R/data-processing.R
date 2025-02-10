@@ -70,14 +70,13 @@ extract_rr_data <- function(
   }
 
   # Extract raw RR intervals
-  hrv_data <- dplyr::filter(hrv_data_check, .data$time != 65.535) # remove the random 65.5 values
+  hrv_data <- dplyr::filter(hrv_data_check, .data$time < 3) # remove the random 65.5 values
   if (nrow(hrv_data) == 0) {
     warning("Empty HRV data in FIT file")
     return(list(laying = numeric(), standing = numeric(), quality_metrics = numeric()))
   }
 
   # Check data density
-  total_time <- sum(hrv_data$time)
   expected_beats <- (laying_time + standing_time) / mean(hrv_data$time)
   actual_beats <- nrow(hrv_data)
 
@@ -96,16 +95,10 @@ extract_rr_data <- function(
     hrv_data$time
   }
 
-  # Initialize filtered intervals vector
-  filtered_intervals <- numeric(length(rr_intervals))
-  valid_intervals <- numeric(length(rr_intervals))
-  filtered_intervals[1] <- rr_intervals[1]
-  n_filtered <- 1
-
   phase_factors <- list(
-    laying = filter_factor * 0.9,
+    laying = filter_factor * 0.7,
     transition = filter_factor * 2,
-    standing = filter_factor * 1.2
+    standing = filter_factor * 1
   )
 
   factors <- case_when(
@@ -115,16 +108,18 @@ extract_rr_data <- function(
   )
 
   kept_rr <- numeric(length(rr_intervals))
-  valid_rr <- numeric(length(rr_intervals))
+
   for (i in 2:length(rr_intervals)) {
-    reference <- 0.2 * median(
-      rr_intervals[max(i - 6, 0):max(i - 1, 1)],
-      na.rm = TRUE
-    ) +
-      0.8 * case_when(
-        sum(rr_intervals[1:i]) < 180 ~ mean(rr_intervals[1:180]),
-        .default = mean(rr_intervals[181:length(rr_intervals)])
+    reference <- case_when(
+      sum(rr_intervals[1:i]) < 180 ~ median(
+        rr_intervals[1:which.max(cumsum(rr_intervals) > 180)]
+      ),
+      .default = median(
+        rr_intervals[
+          (which.max(cumsum(rr_intervals) > 180) + 1):length(rr_intervals)
+        ]
       )
+    )
     if (rr_intervals[i] > reference * 1 - factors[i] &&
       rr_intervals[i] < reference * 1 + factors[i]) {
       kept_rr[i] <- TRUE
@@ -133,27 +128,27 @@ extract_rr_data <- function(
     }
   }
 
-
   # Calculate position indices with transition buffer
   total_time <- sum(rr_intervals)
-  transition_index <- which.max(cumsum(rr_intervals) > total_time / 2)
+  laying_end <- which.max(cumsum(rr_intervals) > 180)
+  standing_start <- which.max(cumsum(rr_intervals) > 180 + transition_buffer)
   laying_intervals <- rr_intervals[
-    1:transition_index
+    1:laying_end
   ][
     as.logical(kept_rr)[
-      1:transition_index
+      1:laying_end
     ]
   ]
-  standing_intervals <- rr_intervals[(transition_index + 1):length(rr_intervals)][
-    as.logical(kept_rr)[(transition_index + 1):length(rr_intervals)]
+  standing_intervals <- rr_intervals[standing_start:length(rr_intervals)][
+    as.logical(kept_rr)[standing_start:length(rr_intervals)]
   ]
 
   # Validate minimum data points per phase
   min_required_points <- 30 # At least 30 beats per phase
   if (length(laying_intervals) < min_required_points ||
     length(standing_intervals) < min_required_points) {
-    warning("Insufficient number of valid intervals in one or both phases")
-    return(list(laying = numeric(), standing = numeric()))
+      warning("Insufficient number of valid intervals in one or both phases")
+      return(list(laying = numeric(), standing = numeric()))
   }
 
   # Convert to HR for checks (60/RR)
