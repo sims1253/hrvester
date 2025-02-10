@@ -15,6 +15,7 @@
 <url><loc>https://sims1253.github.io/hrvester/reference/calculate_trend_direction.html</loc></url>
 <url><loc>https://sims1253.github.io/hrvester/reference/create_empty_result.html</loc></url>
 <url><loc>https://sims1253.github.io/hrvester/reference/extract_rr_data.html</loc></url>
+<url><loc>https://sims1253.github.io/hrvester/reference/extract_session_data.html</loc></url>
 <url><loc>https://sims1253.github.io/hrvester/reference/generate_daily_report.html</loc></url>
 <url><loc>https://sims1253.github.io/hrvester/reference/get_HR.html</loc></url>
 <url><loc>https://sims1253.github.io/hrvester/reference/hrv_plot.html</loc></url>
@@ -27,9 +28,12 @@
 <url><loc>https://sims1253.github.io/hrvester/reference/plot_weekly_heatmap.html</loc></url>
 <url><loc>https://sims1253.github.io/hrvester/reference/process_fit_directory.html</loc></url>
 <url><loc>https://sims1253.github.io/hrvester/reference/process_fit_file.html</loc></url>
+<url><loc>https://sims1253.github.io/hrvester/reference/read_fit_file.html</loc></url>
 <url><loc>https://sims1253.github.io/hrvester/reference/safe_file_operation.html</loc></url>
+<url><loc>https://sims1253.github.io/hrvester/reference/split_rr_phases.html</loc></url>
 <url><loc>https://sims1253.github.io/hrvester/reference/training_recommendations.html</loc></url>
 <url><loc>https://sims1253.github.io/hrvester/reference/validate_cache_structure.html</loc></url>
+<url><loc>https://sims1253.github.io/hrvester/reference/validate_fit_object.html</loc></url>
 <url><loc>https://sims1253.github.io/hrvester/reference/validate_inputs.html</loc></url>
 </urlset>
 

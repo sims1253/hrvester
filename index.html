@@ -6,6 +6,12 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Dashboard for orthostatic test data • hrvester</title>
+<!-- favicons --><link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="apple-touch-icon" type="image/png" sizes="180x180" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" type="image/png" sizes="120x120" href="apple-touch-icon-120x120.png">
+<link rel="apple-touch-icon" type="image/png" sizes="76x76" href="apple-touch-icon-76x76.png">
+<link rel="apple-touch-icon" type="image/png" sizes="60x60" href="apple-touch-icon-60x60.png">
 <script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
@@ -13,6 +19,7 @@
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Dashboard for orthostatic test data">
 <meta name="description" content="An (eventually) interactive dashboard application to analyze .fit files of orthostatic tests.">
 <meta property="og:description" content="An (eventually) interactive dashboard application to analyze .fit files of orthostatic tests.">
+<meta property="og:image" content="https://sims1253.github.io/hrvester/logo.png">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -46,11 +53,13 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="hrvester---athlete-centric-hrv-analysis-toolkit">hrvester - Athlete-Centric HRV Analysis Toolkit<a class="anchor" aria-label="anchor" href="#hrvester---athlete-centric-hrv-analysis-toolkit"></a>
-</h1></div>
-<p><a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a> <a href="https://github.com/sims1253/hrvester/actions" class="external-link"><img src="https://github.com/sims1253/hrvester/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a> <a href="https://app.codecov.io/gh/sims1253/hrvester" class="external-link"><img src="https://codecov.io/gh/sims1253/hrvester/graph/badge.svg" alt="Codecov test coverage"></a></p>
-<p><img src="https://github.com/sims1253/hrvester/blob/master/example/hrv_dashboard.svg?raw=true" width="800" alt="HRV Dashboard Preview"></p>
-<p>A high-performance toolkit for sports physiology analysis, providing:</p>
+<div class="page-header">
+<img src="logo.png" class="logo" alt=""><h1 id="hrvester-">hrvester 
+<a class="anchor" aria-label="anchor" href="#hrvester-"></a>
+</h1>
+</div>
+<p><a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a> <a href="https://github.com/sims1253/hrvester/actions" class="external-link"><img src="https://github.com/sims1253/hrvester/workflows/R-CMD-check/badge.svg" alt="R-CMD-check"></a> <a href="https://github.com/sims1253/hrvester/actions" class="external-link"><img src="https://github.com/sims1253/hrvester/workflows/Tests/badge.svg" alt="Actions Status"></a> <a href="https://app.codecov.io/gh/sims1253/hrvester" class="external-link"><img src="https://codecov.io/gh/sims1253/hrvester/graph/badge.svg" alt="Codecov test coverage"></a></p>
+<p>A toolkit for sports physiology analysis, providing:</p>
 <ul>
 <li>
 <strong>Orthostatic Test Processing</strong> - Full pipeline from FIT files to readiness scores</li>
@@ -63,6 +72,7 @@
 <li>
 <strong>Dashboard Visualization</strong> - Interactive trend monitoring</li>
 </ul>
+<p><img src="https://github.com/sims1253/hrvester/blob/master/example/hrv_dashboard.svg?raw=true" width="800" alt="HRV Dashboard Preview"></p>
 <div class="section level2">
 <h2 id="features">Features<a class="anchor" aria-label="anchor" href="#features"></a>
 </h2>
@@ -160,6 +170,178 @@ Specialized metrics for:
 <span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="co">  url = {https://github.com/sims1253/hrvester}</span></span>
 <span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a><span class="co">}</span></span></code></pre></div>
 <hr>
+</div>
+<div class="section level2">
+<h2 id="hrvester-10-roadmap">hrvester 1.0 Roadmap<a class="anchor" aria-label="anchor" href="#hrvester-10-roadmap"></a>
+</h2>
+<div class="section level3">
+<h3 id="phase-1-core-reorganization">Phase 1: Core Reorganization<a class="anchor" aria-label="anchor" href="#phase-1-core-reorganization"></a>
+</h3>
+<p><strong>Target: v0.4.0</strong></p>
+<div class="section level4">
+<h4 id="code-restructuring">Code Restructuring<a class="anchor" aria-label="anchor" href="#code-restructuring"></a>
+</h4>
+<ul class="task-list">
+<li>
+<label><input type="checkbox">Create new <code>data-processing.R</code></label>
+<ul class="task-list">
+<li><label><input type="checkbox">Move all FIT file processing logic from <code>core.R</code></label></li>
+<li><label><input type="checkbox">Consolidate file reading operations</label></li>
+<li><label><input type="checkbox">Add input validation</label></li>
+</ul>
+</li>
+<li>
+<label><input type="checkbox">Refactor <code>core.R</code></label>
+<ul class="task-list">
+<li><label><input type="checkbox">Move core algorithms (HRV calculation, moving averages)</label></li>
+<li><label><input type="checkbox">Remove redundant functions</label></li>
+<li><label><input type="checkbox">Standardize parameter naming</label></li>
+<li><label><input type="checkbox">Add algorithm documentation</label></li>
+</ul>
+</li>
+<li>
+<label><input type="checkbox">Update <code>analysis.R</code></label>
+<ul class="task-list">
+<li><label><input type="checkbox">Review and consolidate analysis functions</label></li>
+<li><label><input type="checkbox">Improve parameter validation</label></li>
+<li><label><input type="checkbox">Add missing documentation</label></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section level4">
+<h4 id="testing-updates">Testing Updates<a class="anchor" aria-label="anchor" href="#testing-updates"></a>
+</h4>
+<ul class="task-list">
+<li><label><input type="checkbox">Update test files to match new structure</label></li>
+<li><label><input type="checkbox">Add tests for edge cases</label></li>
+<li><label><input type="checkbox">Verify test coverage remains high</label></li>
+<li><label><input type="checkbox">Unify cache and data templates for tests</label></li>
+</ul>
+</div>
+</div>
+<div class="section level3">
+<h3 id="phase-2-error-handling-enhancement">Phase 2: Error Handling Enhancement<a class="anchor" aria-label="anchor" href="#phase-2-error-handling-enhancement"></a>
+</h3>
+<p><strong>Target: v0.5.0</strong></p>
+<div class="section level4">
+<h4 id="unify-data-representation">Unify Data Representation<a class="anchor" aria-label="anchor" href="#unify-data-representation"></a>
+</h4>
+<ul class="task-list">
+<li><label><input type="checkbox">Unify result and cache templates</label></li>
+<li><label><input type="checkbox">Document the data format</label></li>
+</ul>
+</div>
+<div class="section level4">
+<h4 id="error-system-implementation">Error System Implementation<a class="anchor" aria-label="anchor" href="#error-system-implementation"></a>
+</h4>
+<ul class="task-list">
+<li><label><input type="checkbox">Define standard error types</label></li>
+<li><label><input type="checkbox">Implement consistent error messages</label></li>
+<li><label><input type="checkbox">Add input validation across all public functions</label></li>
+<li><label><input type="checkbox">Improve error recovery mechanisms</label></li>
+</ul>
+</div>
+<div class="section level4">
+<h4 id="documentation-1">Documentation<a class="anchor" aria-label="anchor" href="#documentation-1"></a>
+</h4>
+<ul class="task-list">
+<li><label><input type="checkbox">Document error handling patterns</label></li>
+<li><label><input type="checkbox">Add error handling examples</label></li>
+<li><label><input type="checkbox">Update function documentation with error cases</label></li>
+</ul>
+</div>
+<div class="section level4">
+<h4 id="testing">Testing<a class="anchor" aria-label="anchor" href="#testing"></a>
+</h4>
+<ul class="task-list">
+<li><label><input type="checkbox">Add error condition tests</label></li>
+<li><label><input type="checkbox">Verify error message consistency</label></li>
+<li><label><input type="checkbox">Test recovery mechanisms</label></li>
+</ul>
+</div>
+</div>
+<div class="section level3">
+<h3 id="phase-3-api-finalization">Phase 3: API Finalization<a class="anchor" aria-label="anchor" href="#phase-3-api-finalization"></a>
+</h3>
+<p><strong>Target: v0.6.0</strong></p>
+<div class="section level4">
+<h4 id="public-api">Public API<a class="anchor" aria-label="anchor" href="#public-api"></a>
+</h4>
+<ul class="task-list">
+<li><label><input type="checkbox">FInalize official public API</label></li>
+<li><label><input type="checkbox">Mark internal functions with appropriate naming</label></li>
+<li><label><input type="checkbox">Document API stability guarantees</label></li>
+<li><label><input type="checkbox">Create API documentation</label></li>
+</ul>
+</div>
+<div class="section level4">
+<h4 id="documentation-enhancement">Documentation Enhancement<a class="anchor" aria-label="anchor" href="#documentation-enhancement"></a>
+</h4>
+<ul class="task-list">
+<li><label><input type="checkbox">Complete function documentation</label></li>
+<li><label><input type="checkbox">Add examples for all public functions</label></li>
+<li><label><input type="checkbox">Create vignettes for common use cases</label></li>
+<li><label><input type="checkbox">Update README with clear installation/usage</label></li>
+</ul>
+</div>
+<div class="section level4">
+<h4 id="final-testing">Final Testing<a class="anchor" aria-label="anchor" href="#final-testing"></a>
+</h4>
+<ul class="task-list">
+<li><label><input type="checkbox">Complete test coverage for public API</label></li>
+<li><label><input type="checkbox">Add integration tests</label></li>
+<li><label><input type="checkbox">Performance testing</label></li>
+</ul>
+</div>
+</div>
+<div class="section level3">
+<h3 id="phase-4-release-preparation">Phase 4: Release Preparation<a class="anchor" aria-label="anchor" href="#phase-4-release-preparation"></a>
+</h3>
+<p><strong>Target: v1.0.0</strong></p>
+<div class="section level4">
+<h4 id="final-review">Final Review<a class="anchor" aria-label="anchor" href="#final-review"></a>
+</h4>
+<ul class="task-list">
+<li><label><input type="checkbox">Code review of all components</label></li>
+<li><label><input type="checkbox">Documentation review</label></li>
+<li><label><input type="checkbox">Test coverage review</label></li>
+<li><label><input type="checkbox">Performance review</label></li>
+</ul>
+</div>
+<div class="section level4">
+<h4 id="release-preparation">Release Preparation<a class="anchor" aria-label="anchor" href="#release-preparation"></a>
+</h4>
+<ul class="task-list">
+<li><label><input type="checkbox">Update DESCRIPTION</label></li>
+<li><label><input type="checkbox">Update NEWS.md</label></li>
+<li><label><input type="checkbox">Version number update</label></li>
+<li><label><input type="checkbox">Final README review</label></li>
+<li><label><input type="checkbox">CRAN submission preparation</label></li>
+</ul>
+</div>
+<div class="section level4">
+<h4 id="post-release">Post-Release<a class="anchor" aria-label="anchor" href="#post-release"></a>
+</h4>
+<ul class="task-list">
+<li><label><input type="checkbox">Create release tags</label></li>
+<li><label><input type="checkbox">Update documentation website</label></li>
+<li><label><input type="checkbox">Announce release</label></li>
+<li><label><input type="checkbox">Create maintenance schedule</label></li>
+</ul>
+</div>
+</div>
+<div class="section level3">
+<h3 id="future-considerations-post-10">Future Considerations (Post 1.0)<a class="anchor" aria-label="anchor" href="#future-considerations-post-10"></a>
+</h3>
+<ul>
+<li>Enhanced visualization features</li>
+<li>Additional caching optimizations (DuckDB?)</li>
+<li>Interactive dashboard elements</li>
+<li>Additional sport-specific metrics</li>
+<li>Performance optimizations</li>
+</ul>
+</div>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">
