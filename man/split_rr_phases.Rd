@@ -4,20 +4,68 @@
 \alias{split_rr_phases}
 \title{Split RR Intervals Into Orthostatic Test Phases}
 \usage{
-split_rr_phases(rr_intervals, session_info, laying_time, transition_time)
+split_rr_phases(
+  rr_intervals,
+  session_info,
+  laying_time = 180,
+  transition_time = 20,
+  standing_time = 180
+)
 }
 \arguments{
-\item{rr_intervals}{A data frame containing RR interval data with a 'time' column.}
+\item{rr_intervals}{A data frame containing RR interval data.  Must include
+a column named \code{time}.  The function will add an \code{elapsed_time} column
+and a \code{phase} column.}
 
-\item{session_info}{Session information (currently unused).  Consider removing this parameter.}
+\item{session_info}{A list containing session information.  Must include a
+numeric element named \code{duration} representing the total duration of the
+recording (in the same units as \code{laying_time}, \code{transition_time}, and
+\code{standing_time}).}
 
-\item{laying_time}{The time threshold (in the same units as the 'time' column in \code{rr_intervals}) for the laying phase.}
+\item{laying_time}{Numeric. The duration of the laying phase (e.g., in
+seconds). Must be non-negative.}
 
-\item{transition_time}{The duration of the transition phase (in the same units as the 'time' column in \code{rr_intervals}).}
+\item{transition_time}{Numeric. The duration of the transition phase (e.g.,
+in seconds). Must be non-negative.}
+
+\item{standing_time}{Numeric. The duration of the standing phase (e.g., in
+seconds). Must be non-negative.}
 }
 \value{
-A data frame with an added 'phase' column indicating the phase ("laying", "transition", or "standing").
+A data frame with the same data as \code{rr_intervals}, but with two
+added columns:
+\item{elapsed_time}{The cumulative time from the start of the recording.}
+\item{phase}{A character string indicating the phase: "laying",
+"transition", or "standing".}
 }
 \description{
-This function splits RR intervals into the orthostatic test phases based on time thresholds.
+This function splits RR intervals into the orthostatic test phases
+(laying, transition, and standing) based on specified time thresholds.
+}
+\details{
+The sum of \code{laying_time} and \code{standing_time} cannot exceed
+\code{session_info$duration}. If \code{rr_intervals} is an empty data frame, a
+warning is issued, and an empty data frame with a \code{phase} column is
+returned.
+}
+\examples{
+# Example with valid inputs
+rr_data <- data.frame(time = 1:100)
+session_data <- list(duration = 100)
+result <- split_rr_phases(rr_data, session_data, 30, 20, 50)
+head(result)
+
+# Example with an empty rr_intervals data frame
+rr_empty <- data.frame(time = numeric())
+session_data <- list(duration = 60)
+result_empty <- split_rr_phases(rr_empty, session_data, 20, 10, 30)
+print(result_empty)
+
+\dontrun{
+# Example with invalid input (sum of times exceeds duration)
+rr_data <- data.frame(time = 1:100)
+session_data <- list(duration = 100)
+# This will throw an error
+result_error <- split_rr_phases(rr_data, session_data, 50, 60, 70)
+}
 }
