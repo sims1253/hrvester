@@ -4,7 +4,7 @@
 \alias{create_empty_result}
 \title{Create empty result row}
 \usage{
-create_empty_result(file_path, date, week, time_of_day, filter_factor)
+create_empty_result(file_path, date, week, time_of_day)
 }
 \arguments{
 \item{file_path}{Source file path}
@@ -14,8 +14,6 @@ create_empty_result(file_path, date, week, time_of_day, filter_factor)
 \item{week}{Week number}
 
 \item{time_of_day}{Time of day}
-
-\item{filter_factor}{RR filter factor used}
 }
 \value{
 Tibble with NA values

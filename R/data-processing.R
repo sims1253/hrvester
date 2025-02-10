@@ -1,4 +1,11 @@
-#' Validate FIT file object
+#' Validate FIT Object
+#'
+#' This is a placeholder for the actual validation function.  In a real
+#' package, this function would contain checks to ensure that \code{fit_object}
+#' is a valid object of the expected type (likely a list or environment
+#' resulting from \code{\link[FITfileR]{readFitFile}}).
+#'
+#' @param fit_object The object to validate.
 #' @keywords internal
 validate_fit_object <- function(fit_object) {
   if (!inherits(fit_object, "FitFile")) {
@@ -6,186 +13,69 @@ validate_fit_object <- function(fit_object) {
   }
 }
 
-#' Extract RR intervals from FIT file
+#' Extract RR Interval Data from a FIT File Object
 #'
-#' @description
-#' Extracts heart rate variability data from FIT files by analyzing RR intervals
-#' during both laying and standing positions. Implements robust filtering to maintain
-#' data quality and properly handle phase transitions.
+#' Extracts RR interval data (HRV data) from a FIT file object.  This function
+#' is designed for situations where you expect the FIT file to contain HRV data.
+#' If no HRV data is found, it issues a warning and returns an empty numeric
+#' vector.
 #'
-#' @param fit_object FITfileR object containing the FIT file data
-#' @param filter_factor Numeric value (0-1) for filtering outliers. Higher values
-#'   allow more variation between successive intervals
-#' @param laying_time Duration in seconds for laying position (default: 180)
-#' @param standing_time Duration in seconds for standing position (default: 180)
-#' @param transition_buffer Time in seconds to exclude around position change (default: 5)
+#' @param fit_object A FIT file object, typically created by
+#'   \code{\link[FITfileR]{readFitFile}}.  The object should be the result of
+#'   reading a FIT file that is expected to contain HRV (RR interval) data.
 #'
-#' @return List containing:
-#'   \item{laying}{Numeric vector of RR intervals during laying position (seconds)}
-#'   \item{standing}{Numeric vector of RR intervals during standing position (seconds)}
+#' @return A data frame containing the RR data, obtained directly from
+#'  \code{\link[FITfileR]{hrv}}. If no HRV data is found, the function
+#'  returns an empty numeric vector (\code{numeric(0)}).  Unlike a previous
+#'  version, this version *does not* perform any filtering on the returned HRV
+#'  data.
 #'
-#' @importFrom FITfileR readFitFile
-#' @importFrom dplyr "%>%"
-#' @importFrom rlang .data
+#' @details
+#' The function performs the following steps:
+#' 1.  **Input Validation:** It validates the \code{fit_object} using a
+#'     \code{\link{validate_fit_object}} function (assumed to be defined
+#'     elsewhere in your package).
+#' 2.  **HRV Data Extraction:** It attempts to extract HRV data using
+#'     \code{\link[FITfileR]{hrv}}.
+#' 3.  **HRV Data Check:** It checks if the extracted HRV data is \code{NULL} or
+#'     empty (has zero rows).
+#' 4.  **Return Value:**
+#'     *   If HRV data is found and is not empty, the function returns the
+#'         data frame returned by \code{\link[FITfileR]{hrv}}.
+#'     *   If HRV data is \code{NULL} or empty, the function issues a warning
+#'         message ("No HRV data found in FIT file") and returns an empty
+#'         numeric vector (\code{numeric(0)}).
+#'
+#' @examples
+#' \dontrun{
+#' # Assuming you have a FIT file named "activity.fit" that *should*
+#' # contain HRV data.
+#' fit_file <- FITfileR::readFitFile("activity.fit")
+#' rr_data <- extract_rr_data(fit_file)
+#'
+#' # If HRV data was present:
+#' # rr_data will be a data.frame (the result of FITfileR::hrv()).
+#'
+#' # If no HRV data was found:
+#' # rr_data will be numeric(0).
+#' }
+#'
+#' @seealso \code{\link[FITfileR]{hrv}}, \code{\link[FITfileR]{readFitFile}}
+#' @importFrom FITfileR hrv
 #' @export
 extract_rr_data <- function(
-    fit_object,
-    filter_factor = 0.15,
-    laying_time = 180,
-    standing_time = 180,
-    transition_buffer = 20) {
+    fit_object) {
   # Input validation with descriptive errors
   validate_fit_object(fit_object)
 
-  # Validate numeric parameters
-  if (!is.numeric(filter_factor) || filter_factor <= 0 || filter_factor >= 1) {
-    stop("filter_factor must be between 0 and 1")
-  }
-  if (!is.numeric(laying_time) || laying_time <= 30) {
-    stop("laying_time must be at least 30 seconds")
-  }
-  if (!is.numeric(standing_time) || standing_time <= 30) {
-    stop("standing_time must be at least 30 seconds")
-  }
-  if (!is.numeric(transition_buffer) || transition_buffer < 0) {
-    stop("transition_buffer must be non-negative")
-  }
-
-  # Validate transition buffer relative to measurement times
-  if (transition_buffer >= min(laying_time, standing_time) / 2) {
-    warning("transition_buffer must be less than half of the shortest measurement phase")
-  }
-
-  # Validate reasonable ratio between laying and standing times
-  time_ratio <- laying_time / standing_time
-  if (time_ratio < 0.5 || time_ratio > 2) {
-    warning("laying_time and standing_time should be within a factor of 2 of each other")
-  }
-
   # Check for HRV data availability
-  hrv_data_check <- FITfileR::hrv(fit_object)
-  if (is.null(hrv_data_check) || nrow(hrv_data_check) == 0) {
+  hrv_data <- FITfileR::hrv(fit_object)
+  if (is.null(hrv_data) || nrow(hrv_data) == 0) {
     warning("No HRV data found in FIT file")
-    return(list(laying = numeric(), standing = numeric(), quality_metrics = numeric()))
+    return(list(time = numeric()))
   }
 
-  # Extract raw RR intervals
-  hrv_data <- dplyr::filter(hrv_data_check, .data$time < 3) # remove the random 65.5 values
-  if (nrow(hrv_data) == 0) {
-    warning("Empty HRV data in FIT file")
-    return(list(laying = numeric(), standing = numeric(), quality_metrics = numeric()))
-  }
-
-  # Check data density
-  expected_beats <- (laying_time + standing_time) / mean(hrv_data$time)
-  actual_beats <- nrow(hrv_data)
-
-  if (actual_beats / expected_beats < 0.8) { # Require at least 80% of expected beats
-    warning(sprintf(
-      "Insufficient data density: %.1f%% of expected beats",
-      100 * actual_beats / expected_beats
-    ))
-    return(list(laying = numeric(), standing = numeric()))
-  }
-
-  # Convert to seconds if necessary (some devices record in milliseconds)
-  rr_intervals <- if (mean(hrv_data$time, na.rm = TRUE) > 10) {
-    hrv_data$time / 1000 # Convert from ms to seconds
-  } else {
-    hrv_data$time
-  }
-
-  phase_factors <- list(
-    laying = filter_factor * 0.7,
-    transition = filter_factor * 2,
-    standing = filter_factor * 1
-  )
-
-  factors <- case_when(
-    cumsum(rr_intervals) <= laying_time ~ phase_factors$laying,
-    cumsum(rr_intervals) <= laying_time + transition_buffer ~ phase_factors$transition,
-    .default = phase_factors$standing
-  )
-
-  kept_rr <- numeric(length(rr_intervals))
-
-  for (i in 2:length(rr_intervals)) {
-    reference <- case_when(
-      sum(rr_intervals[1:i]) < 180 ~ median(
-        rr_intervals[1:which.max(cumsum(rr_intervals) > 180)]
-      ),
-      .default = median(
-        rr_intervals[
-          (which.max(cumsum(rr_intervals) > 180) + 1):length(rr_intervals)
-        ]
-      )
-    )
-    if (rr_intervals[i] > reference * 1 - factors[i] &&
-      rr_intervals[i] < reference * 1 + factors[i]) {
-      kept_rr[i] <- TRUE
-    } else {
-      kept_rr[i] <- FALSE
-    }
-  }
-
-  # Calculate position indices with transition buffer
-  total_time <- sum(rr_intervals)
-  laying_end <- which.max(cumsum(rr_intervals) > 180)
-  standing_start <- which.max(cumsum(rr_intervals) > 180 + transition_buffer)
-  laying_intervals <- rr_intervals[
-    1:laying_end
-  ][
-    as.logical(kept_rr)[
-      1:laying_end
-    ]
-  ]
-  standing_intervals <- rr_intervals[standing_start:length(rr_intervals)][
-    as.logical(kept_rr)[standing_start:length(rr_intervals)]
-  ]
-
-  # Validate minimum data points per phase
-  min_required_points <- 30 # At least 30 beats per phase
-  if (length(laying_intervals) < min_required_points ||
-    length(standing_intervals) < min_required_points) {
-      warning("Insufficient number of valid intervals in one or both phases")
-      return(list(laying = numeric(), standing = numeric()))
-  }
-
-  # Convert to HR for checks (60/RR)
-  laying_hr <- 60 / laying_intervals
-  standing_hr <- 60 / standing_intervals
-
-  # Quality checks based on physiological norms
-  quality_checks <- list(
-    laying_hr_range = range(laying_hr),
-    standing_hr_range = range(standing_hr),
-    laying_rmssd = sqrt(mean(diff(laying_intervals * 1000)^2)),
-    standing_rmssd = sqrt(mean(diff(standing_intervals * 1000)^2)),
-    orthostatic_response = mean(standing_hr) - mean(laying_hr)
-  )
-
-  # Flag potentially problematic measurements
-  warnings <- character(0)
-  if (quality_checks$laying_hr_range[1] < 30 || quality_checks$laying_hr_range[2] > 100) {
-    warnings <- c(warnings, "Unusual laying HR range detected")
-  }
-  if (quality_checks$standing_hr_range[1] < 40 || quality_checks$standing_hr_range[2] > 120) {
-    warnings <- c(warnings, "Unusual standing HR range detected")
-  }
-  if (quality_checks$orthostatic_response < 0 || quality_checks$orthostatic_response > 40) {
-    warnings <- c(warnings, "Unusual orthostatic response detected")
-  }
-
-  if (length(warnings) > 0) {
-    warning(paste(warnings, collapse = "\n"))
-  }
-
-  # Return intervals and quality metrics
-  list(
-    laying = laying_intervals,
-    standing = standing_intervals,
-    quality_metrics = quality_checks
-  )
+  return(hrv_data)
 }
 
 #' Extract HR data from FIT object
@@ -194,11 +84,8 @@ extract_rr_data <- function(
 #' Extracts heart rate data handling both list and data frame formats
 #'
 #' @param fit_object An object of class FitFile
-
 #' @return Numeric vector of heart rate values
-
 #' @keywords internal
-
 #' @importFrom FITfileR records
 get_HR <- function(fit_object) {
   validate_fit_object(fit_object)
@@ -371,69 +258,104 @@ extract_session_data <- function(fit_object) {
 #' Process a single FIT file
 #'
 #' @description
-#' Calculates HRV metrics from a FIT file with error handling
+#' Calculates HRV metrics from a FIT file, integrating data extraction,
+#' RR interval processing, and HRV calculation with error handling.
 #'
 #' @param file_path Path to FIT file
-#' @param filter_factor Numeric value for RR filtering
+#' @param standing_time Time in seconds to consider as standing
+#' @param transition_time Time in seconds to consider as transition
+#' @param laying_time Time in seconds to consider as laying
+#' @param min_rr Minimum RR interval in milliseconds
+#' @param max_rr Maximum RR interval in milliseconds
+#' @param window_size Window size for moving average calculation
+#' @param threshold Threshold for artifact detection
 #' @return Tibble containing HRV metrics
 #' @export
-process_fit_file <- function(file_path, filter_factor) {
-  if (!is.numeric(filter_factor) || length(filter_factor) != 1 ||
-    filter_factor < 0.1 || filter_factor > 0.3) {
-    stop("filter_factor must be a single numeric value between 0.1 and 0.3")
-  }
+process_fit_file <- function(
+    file_path,
+    standing_time = 180,
+    transition_time = 20,
+    laying_time = 180,
+    min_rr = 272,
+    max_rr = 2000,
+    window_size = 7,
+    threshold = 0.2) {
+  fit_object <- read_fit_file(file_path = file_path)
+  session <- extract_session_data(fit_object = fit_object)
+  hr_data <- get_HR(fit_object)
 
-  result <- tryCatch(
-    {
-      fit_object <- read_fit_file(file_path = file_path)
-      hr_data <- get_HR(fit_object)
-
-      # Calculate metrics
-      resting_hr <- calculate_resting_hr(
-        hr_data[30:180],
-        method = "lowest_sustained"
-      )
-
-      hrr_metrics <- calculate_hrr(hr_data[181:240], resting_hr)
-      rr_data <- extract_rr_data(fit_object, filter_factor)
-
-      # Get session data
-      session <- extract_session_data(fit_object = fit_object)
-
-      # Process if we have enough data
-      if (length(rr_data$laying) >= 2 && length(rr_data$standing) >= 2) {
-        laying <- calculate_hrv(rr_data$laying)
-        standing <- calculate_hrv(rr_data$standing)
-
-        tibble::tibble(
-          source_file = file_path,
-          date = as.character(session$date),
-          week = session$week,
-          time_of_day = session$time_of_day,
-          laying_rmssd = laying$rmssd,
-          laying_sdnn = laying$sdnn,
-          laying_hr = round(mean(hr_data[30:150], na.rm = TRUE), 2),
-          laying_resting_hr = resting_hr,
-          standing_rmssd = standing$rmssd,
-          standing_sdnn = standing$sdnn,
-          standing_hr = round(mean(hr_data[220:330], na.rm = TRUE), 2),
-          standing_max_hr = max(hr_data[181:220], na.rm = TRUE),
-          hrr_60s = hrr_metrics$hrr_60s,
-          hrr_relative = hrr_metrics$hrr_relative,
-          orthostatic_rise = hrr_metrics$orthostatic_rise,
-          package_version = as.character(utils::packageVersion("hrvester")),
-          RR_filter = filter_factor,
-          activity = FITfileR::getMessagesByType(fit_object, "sport")$name
-        )
-      } else {
-        create_empty_result(file_path, date, week, time_of_day, filter_factor)
-      }
-    },
-    error = function(e) {
-      create_empty_result(file_path, NA, NA, NA, filter_factor)
-    }
+  # Calculate metrics
+  resting_hr <- calculate_resting_hr(
+    hr_data[30:180],
+    method = "lowest_sustained"
   )
 
+  hrr_metrics <- calculate_hrr(hr_data[181:240], resting_hr)
+  tryCatch(
+    {
+      rr_intervals <- extract_rr_data(fit_object)
+    },
+    error = function(e) {
+      return(create_empty_result(file_path, NA, NA, NA))
+    }
+  )
+  rr_intervals$time <- rr_intervals$time * 1000
+  rr_intervals <- split_rr_phases(
+    rr_intervals,
+    session,
+    laying_time = laying_time,
+    transition_time = transition_time,
+    standing_time = standing_time
+  )
+  laying_data <- rr_full_phase_processing(
+    dplyr::filter(rr_intervals, phase == "laying")$time,
+    min_rr = min_rr,
+    max_rr = max_rr,
+    window_size = window_size,
+    threshold = threshold
+  )
+  laying_hrv <- calculate_hrv(laying_data$cleaned_rr)
+  transition_data <- rr_full_phase_processing(
+    dplyr::filter(rr_intervals, phase == "transition")$time,
+    min_rr = min_rr,
+    max_rr = max_rr,
+    window_size = window_size,
+    threshold = threshold
+  )
+  transitioning_hrv <- calculate_hrv(transition_data$cleaned_rr)
+  standing_data <- rr_full_phase_processing(
+    dplyr::filter(rr_intervals, phase == "standing")$time,
+    min_rr = min_rr,
+    max_rr = max_rr,
+    window_size = window_size,
+    threshold = threshold
+  )
+  standing_hrv <- calculate_hrv(standing_data$cleaned_rr)
+
+  # Process if we have enough data
+  if (length(laying_data$is_valid) >= 2 && length(standing_data$is_valid) >= 2) {
+    result <- tibble::tibble(
+      source_file = file_path,
+      date = as.character(session$date),
+      week = session$week,
+      time_of_day = session$time_of_day,
+      laying_rmssd = laying_hrv$rmssd,
+      laying_sdnn = laying_hrv$sdnn,
+      laying_hr = round(mean(hr_data[30:150], na.rm = TRUE), 2),
+      laying_resting_hr = resting_hr,
+      standing_rmssd = standing_hrv$rmssd,
+      standing_sdnn = standing_hrv$sdnn,
+      standing_hr = round(mean(hr_data[220:330], na.rm = TRUE), 2),
+      standing_max_hr = max(hr_data[181:220], na.rm = TRUE),
+      hrr_60s = hrr_metrics$hrr_60s,
+      hrr_relative = hrr_metrics$hrr_relative,
+      orthostatic_rise = hrr_metrics$orthostatic_rise,
+      package_version = as.character(utils::packageVersion("hrvester")),
+      activity = FITfileR::getMessagesByType(fit_object, "sport")$name
+    )
+  } else {
+    result <- create_empty_result(file_path, date, week, time_of_day)
+  }
   return(result)
 }
 
@@ -446,10 +368,9 @@ process_fit_file <- function(file_path, filter_factor) {
 #' @param date Date of measurement
 #' @param week Week number
 #' @param time_of_day Time of day
-#' @param filter_factor RR filter factor used
 #' @return Tibble with NA values
 #' @keywords internal
-create_empty_result <- function(file_path, date, week, time_of_day, filter_factor) {
+create_empty_result <- function(file_path, date, week, time_of_day) {
   tibble::tibble(
     source_file = file_path,
     date = as.character(date),
@@ -467,7 +388,6 @@ create_empty_result <- function(file_path, date, week, time_of_day, filter_facto
     hrr_relative = NA_real_,
     orthostatic_rise = NA_real_,
     package_version = as.character(utils::packageVersion("hrvester")),
-    RR_filter = filter_factor,
     activity = NA_character_
   )
 }
@@ -476,23 +396,34 @@ create_empty_result <- function(file_path, date, week, time_of_day, filter_facto
 #' Process directory of FIT files with caching
 #'
 #' Processes multiple FIT files from a specified directory, utilizing caching to
-#' avoid reprocessing unchanged files. This function is designed to be efficient
-#' by only processing new or updated files since the last run.
+#' avoid reprocessing unchanged files. This function efficiently processes new or updated files in a directory, leveraging a cache to skip already processed files.
 #'
-#' @param dir_path The directory path containing FIT files to process
-#' @param cache_file Path to the cache file for storing processed data
-#' @param filter_factor Numeric value (0-1) used to filter RR intervals
-#' @param clear_cache Logical indicating whether to clear existing cache
+#' @param dir_path The directory path containing FIT files to process.
+#' @param cache_file Path to the cache file for storing processed data. Defaults to "hrv_cache.csv" within the directory.
+#' @param standing_time Time in seconds to consider as standing. Default is 180 seconds.
+#' @param transition_time Time in seconds to consider as transition. Default is 20 seconds.
+#' @param laying_time Time in seconds to consider as laying. Default is 180 seconds.
+#' @param min_rr Minimum RR interval in milliseconds. Default is 272 ms.
+#' @param max_rr Maximum RR interval in milliseconds. Default is 2000 ms.
+#' @param window_size Window size for moving average calculation. Default is 7.
+#' @param threshold Threshold for artifact detection. Default is 0.2.
+#' @param clear_cache Logical indicating whether to clear existing cache. Default is FALSE.
 #'
 #' @return A tibble containing HRV metrics for all processed FIT files
 #' @export
 process_fit_directory <- function(
     dir_path,
     cache_file = file.path(dir_path, "hrv_cache.csv"),
-    filter_factor = 0.175,
+    standing_time = 180,
+    transition_time = 20,
+    laying_time = 180,
+    min_rr = 272,
+    max_rr = 2000,
+    window_size = 7,
+    threshold = 0.2,
     clear_cache = FALSE) {
   # Validate inputs
-  validate_inputs(dir_path, cache_file, filter_factor, clear_cache)
+  validate_inputs(dir_path, cache_file, clear_cache)
 
   # Get list of FIT files
   fit_files <- list.files(dir_path, pattern = "\\.fit$", full.names = TRUE)
@@ -512,8 +443,7 @@ process_fit_directory <- function(
   new_files <- setdiff(fit_files, cached_data$source_file)
   outdated_entries <- cached_data %>%
     dplyr::filter(
-      package_version != utils::packageVersion("hrvester") |
-        RR_filter != filter_factor
+      package_version != utils::packageVersion("hrvester")
     ) %>%
     dplyr::pull(source_file)
 
@@ -527,7 +457,16 @@ process_fit_directory <- function(
     new_data <- furrr::future_map_dfr(
       files_to_process,
       function(file_path) {
-        result <- process_fit_file(file_path, filter_factor = filter_factor)
+        result <- process_fit_file(
+          file_path,
+          standing_time = standing_time,
+          transition_time = transition_time,
+          laying_time = laying_time,
+          min_rr = min_rr,
+          max_rr = max_rr,
+          window_size = window_size,
+          threshold = threshold
+        )
         p()
         return(result)
       },

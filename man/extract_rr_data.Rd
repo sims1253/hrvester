@@ -2,35 +2,63 @@
 % Please edit documentation in R/data-processing.R
 \name{extract_rr_data}
 \alias{extract_rr_data}
-\title{Extract RR intervals from FIT file}
+\title{Extract RR Interval Data from a FIT File Object}
 \usage{
-extract_rr_data(
-  fit_object,
-  filter_factor = 0.15,
-  laying_time = 180,
-  standing_time = 180,
-  transition_buffer = 20
-)
+extract_rr_data(fit_object)
 }
 \arguments{
-\item{fit_object}{FITfileR object containing the FIT file data}
-
-\item{filter_factor}{Numeric value (0-1) for filtering outliers. Higher values
-allow more variation between successive intervals}
-
-\item{laying_time}{Duration in seconds for laying position (default: 180)}
-
-\item{standing_time}{Duration in seconds for standing position (default: 180)}
-
-\item{transition_buffer}{Time in seconds to exclude around position change (default: 5)}
+\item{fit_object}{A FIT file object, typically created by
+\code{\link[FITfileR]{readFitFile}}.  The object should be the result of
+reading a FIT file that is expected to contain HRV (RR interval) data.}
 }
 \value{
-List containing:
-\item{laying}{Numeric vector of RR intervals during laying position (seconds)}
-\item{standing}{Numeric vector of RR intervals during standing position (seconds)}
+A data frame containing the RR data, obtained directly from
+\code{\link[FITfileR]{hrv}}. If no HRV data is found, the function
+returns an empty numeric vector (\code{numeric(0)}).  Unlike a previous
+version, this version \emph{does not} perform any filtering on the returned HRV
+data.
 }
 \description{
-Extracts heart rate variability data from FIT files by analyzing RR intervals
-during both laying and standing positions. Implements robust filtering to maintain
-data quality and properly handle phase transitions.
+Extracts RR interval data (HRV data) from a FIT file object.  This function
+is designed for situations where you expect the FIT file to contain HRV data.
+If no HRV data is found, it issues a warning and returns an empty numeric
+vector.
+}
+\details{
+The function performs the following steps:
+\enumerate{
+\item \strong{Input Validation:} It validates the \code{fit_object} using a
+\code{\link{validate_fit_object}} function (assumed to be defined
+elsewhere in your package).
+\item \strong{HRV Data Extraction:} It attempts to extract HRV data using
+\code{\link[FITfileR]{hrv}}.
+\item \strong{HRV Data Check:} It checks if the extracted HRV data is \code{NULL} or
+empty (has zero rows).
+\item \strong{Return Value:}
+\itemize{
+\item If HRV data is found and is not empty, the function returns the
+data frame returned by \code{\link[FITfileR]{hrv}}.
+\item If HRV data is \code{NULL} or empty, the function issues a warning
+message ("No HRV data found in FIT file") and returns an empty
+numeric vector (\code{numeric(0)}).
+}
+}
+}
+\examples{
+\dontrun{
+# Assuming you have a FIT file named "activity.fit" that *should*
+# contain HRV data.
+fit_file <- FITfileR::readFitFile("activity.fit")
+rr_data <- extract_rr_data(fit_file)
+
+# If HRV data was present:
+# rr_data will be a data.frame (the result of FITfileR::hrv()).
+
+# If no HRV data was found:
+# rr_data will be numeric(0).
+}
+
+}
+\seealso{
+\code{\link[FITfileR]{hrv}}, \code{\link[FITfileR]{readFitFile}}
 }

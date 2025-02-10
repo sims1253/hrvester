@@ -1,7 +1,7 @@
 test_that("calculate_hrv handles normal case correctly", {
   # Create simulated RR intervals with known properties
   set.seed(123)
-  rr_intervals <- c(1.0, 1.1, 0.9, 1.2, 0.8, 1.0, 1.1, 0.9)
+  rr_intervals <- c(1000, 1100, 900, 1200, 800, 1000, 1100, 900)
 
   result <- calculate_hrv(rr_intervals)
 
@@ -11,9 +11,8 @@ test_that("calculate_hrv handles normal case correctly", {
 
   # Test calculations
   # We can calculate expected values manually for comparison
-  rr_ms <- rr_intervals * 1000
-  expected_rmssd <- sqrt(mean(diff(rr_ms)^2))
-  expected_sdnn <- sd(rr_ms)
+  expected_rmssd <- sqrt(mean(diff(rr_intervals)^2))
+  expected_sdnn <- sd(rr_intervals)
 
   expect_equal(result$rmssd, round(expected_rmssd, 2))
   expect_equal(result$sdnn, round(expected_sdnn, 2))

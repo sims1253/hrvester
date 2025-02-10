@@ -17,12 +17,9 @@ calculate_hrv <- function(rr_intervals) {
     ))
   }
 
-  # Convert to milliseconds for calculation
-  rr_ms <- 1000 * rr_intervals
-
   return(list(
-    rmssd = round(sqrt(mean(diff(rr_ms)^2, na.rm = TRUE)), digits = 2),
-    sdnn = round(stats::sd(rr_ms, na.rm = TRUE), digits = 2)
+    rmssd = round(sqrt(mean(diff(rr_intervals)^2, na.rm = TRUE)), digits = 2),
+    sdnn = round(stats::sd(rr_intervals, na.rm = TRUE), digits = 2)
   ))
 }
 

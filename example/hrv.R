@@ -20,15 +20,13 @@ if(Sys.info()['sysname'] == "Linux") {
    image_dir = "path-to-images" # set
  }
 
-filter_factor = 0.175
-
 # Check current .fit files
 existing_fit_files <- list.files(fit_dir, pattern = "//.fit$", full.names = TRUE)
 
 # Run Python script to download new files
 py_run_file("./fit_export.py") # set as path to .py file
 
-metrics = process_fit_directory(fit_dir, filter_factor = filter_factor) %>%
+metrics = process_fit_directory(fit_dir) %>%
   filter(activity == "OST")
 
 hrv_trend_plot(tail(metrics, n = 14), just_rssme = TRUE)

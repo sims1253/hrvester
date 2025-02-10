@@ -18,7 +18,6 @@
 #'     \item standing_hr (numeric): Mean heart rate during standing position
 #'     \item standing_max_hr (numeric): Maximum heart rate during standing
 #'     \item package_version (character): Version of the package
-#'     \item RR_filter (numeric): Filter factor used for processing
 #'     \item activity (character): Type of activity
 #'   }
 #' @export
@@ -37,7 +36,6 @@ cache_definition <- function() {
     standing_hr = numeric(),
     standing_max_hr = numeric(),
     package_version = character(),
-    RR_filter = numeric(),
     activity = character(),
     hrr_60s = numeric(),
     hrr_relative = numeric(),
@@ -95,21 +93,16 @@ validate_cache_structure <- function(cache_data) {
 #'
 #' @param dir_path Directory path
 #' @param cache_file Cache file path
-#' @param filter_factor Filter factor value
 #' @param clear_cache Clear cache flag
 #' @return TRUE if valid, throws error if invalid
 #' @keywords internal
-validate_inputs <- function(dir_path, cache_file, filter_factor, clear_cache) {
+validate_inputs <- function(dir_path, cache_file, clear_cache) {
   if (!dir.exists(dir_path)) {
     stop(sprintf("Directory '%s' does not exist", dir_path))
   }
 
   if (!is.character(cache_file) || length(cache_file) != 1) {
     stop("cache_file must be a single character string")
-  }
-
-  if (!is.numeric(filter_factor) || filter_factor <= 0 || filter_factor > 1) {
-    stop("filter_factor must be a number between 0 and 1")
   }
 
   if (!is.logical(clear_cache) || length(clear_cache) != 1) {
@@ -154,6 +147,7 @@ safe_file_operation <- function(operation, ...) {
   )
 }
 
+#' @keywords internal
 load_cache <- function(cache_file) {
   tryCatch(
     {

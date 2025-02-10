@@ -22,7 +22,6 @@ A tibble with columns:
 \item standing_hr (numeric): Mean heart rate during standing position
 \item standing_max_hr (numeric): Maximum heart rate during standing
 \item package_version (character): Version of the package
-\item RR_filter (numeric): Filter factor used for processing
 \item activity (character): Type of activity
 }
 }
