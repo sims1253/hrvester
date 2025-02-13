@@ -4,14 +4,12 @@
 \alias{validate_inputs}
 \title{Validate input parameters}
 \usage{
-validate_inputs(dir_path, cache_file, filter_factor, clear_cache)
+validate_inputs(dir_path, cache_file, clear_cache)
 }
 \arguments{
 \item{dir_path}{Directory path}
 
 \item{cache_file}{Cache file path}
-
-\item{filter_factor}{Filter factor value}
 
 \item{clear_cache}{Clear cache flag}
 }

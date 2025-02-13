@@ -4,7 +4,7 @@
 \alias{hrv_plot}
 \title{Plot HRV summaries for a single orthostatic test fit file.}
 \usage{
-hrv_plot(file_path, base = "HR", filter_factor = 0.175)
+hrv_plot(file_path, base = "HR")
 }
 \arguments{
 \item{file_path}{Path to the FIT file to process}
@@ -14,10 +14,6 @@ hrv_plot(file_path, base = "HR", filter_factor = 0.175)
 \item "HR": Heart rate data
 \item "RR": RR interval data
 }}
-
-\item{filter_factor}{Numeric value used to filter RR intervals that are more
-than filter_factor times smaller or larger than the previous value. Helps
-remove suspected false readings. Default: 0.175}
 }
 \value{
 A ggplot2 plot object

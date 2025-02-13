@@ -10,9 +10,6 @@
 #'     \item "HR": Heart rate data
 #'     \item "RR": RR interval data
 #'   }
-#' @param filter_factor Numeric value used to filter RR intervals that are more
-#'   than filter_factor times smaller or larger than the previous value. Helps
-#'   remove suspected false readings. Default: 0.175
 #'
 #' @return A ggplot2 plot object
 #'
@@ -20,19 +17,17 @@
 #' @importFrom FITfileR readFitFile
 #' @importFrom dplyr "%>%"
 #' @importFrom ggplot2 ggplot geom_line geom_vline scale_x_continuous annotate aes xlab theme_bw ggtitle
-hrv_plot <- function(file_path, base = "HR", filter_factor = 0.175) {
+hrv_plot <- function(file_path, base = "HR") {
   fit_object <- FITfileR::readFitFile(file_path)
 
   # Extract RR intervals
   RR <- extract_rr_data(
-    fit_object = fit_object,
-    filter_factor = filter_factor
+    fit_object = fit_object
   )
   HR <- get_HR(fit_object = fit_object)
 
   metrics <- process_fit_file(
-    file_path = file_path,
-    filter_factor = filter_factor
+    file_path = file_path
   )
 
   standing_RR <- RR$standing
