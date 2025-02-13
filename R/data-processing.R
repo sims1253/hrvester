@@ -481,16 +481,10 @@ process_fit_directory <- function(
       dplyr::arrange(date, desc(time_of_day))
 
     # Save updated cache atomically
-    temp_file <- tempfile(fileext = ".csv")
     safe_file_operation(
-      readr::write_csv2,
-      all_data,
-      temp_file
-    )
-    safe_file_operation(
-      file.copy,
-      temp_file,
-      cache_file
+      readr::write_csv,
+      x = all_data,
+      file =cache_file
     )
 
     return(all_data)

@@ -171,14 +171,14 @@ load_cache <- function(cache_file) {
       }
 
       # Attempt to read the file
-      data <- readr::read_csv2(
+      data <- readr::read_csv(
         cache_file,
         show_col_types = FALSE,
         col_types = col_types
       )
 
       # Check if we have all required columns
-      if (!all(names(template) %in% names(data))) {
+      if (!setequal(names(cache_definition()), names(data))) {
         warning("Cache file missing required columns, creating new cache")
         return(cache_definition())
       }
