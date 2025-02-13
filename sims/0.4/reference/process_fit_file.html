@@ -9,7 +9,7 @@ RR interval processing, and HRV calculation with error handling."><meta property
 
     <a class="navbar-brand me-2" href="../index.html">hrvester</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.4.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,7 +48,11 @@ RR interval processing, and HRV calculation with error handling.</p>
 <span>  min_rr <span class="op">=</span> <span class="fl">272</span>,</span>
 <span>  max_rr <span class="op">=</span> <span class="fl">2000</span>,</span>
 <span>  window_size <span class="op">=</span> <span class="fl">7</span>,</span>
-<span>  threshold <span class="op">=</span> <span class="fl">0.2</span></span>
+<span>  threshold <span class="op">=</span> <span class="fl">0.2</span>,</span>
+<span>  centered_transition <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  centered_window <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  warmup <span class="op">=</span> <span class="fl">70</span>,</span>
+<span>  sport_name <span class="op">=</span> <span class="st">"OST"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -86,6 +90,25 @@ RR interval processing, and HRV calculation with error handling.</p>
 
 <dt id="arg-threshold">threshold<a class="anchor" aria-label="anchor" href="#arg-threshold"></a></dt>
 <dd><p>Threshold for artifact detection</p></dd>
+
+
+<dt id="arg-centered-transition">centered_transition<a class="anchor" aria-label="anchor" href="#arg-centered-transition"></a></dt>
+<dd><p>Logical indicating whether the transition time
+should be split into laying and standing times. FALSE, if transition time
+is only taken from the laying phase.</p></dd>
+
+
+<dt id="arg-centered-window">centered_window<a class="anchor" aria-label="anchor" href="#arg-centered-window"></a></dt>
+<dd><p>Logical indicating whether the moving window should
+be centered. Defaults to FALSE.</p></dd>
+
+
+<dt id="arg-warmup">warmup<a class="anchor" aria-label="anchor" href="#arg-warmup"></a></dt>
+<dd><p>Time in seconds from the start that should be discarded</p></dd>
+
+
+<dt id="arg-sport-name">sport_name<a class="anchor" aria-label="anchor" href="#arg-sport-name"></a></dt>
+<dd><p>Name of the sport for the fit file. Used as a filter.</p></dd>
 
 </dl></div>
     <div class="section level2">

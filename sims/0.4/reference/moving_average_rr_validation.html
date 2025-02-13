@@ -9,7 +9,7 @@ erroneous intervals."><meta property="og:image" content="https://sims1253.github
 
     <a class="navbar-brand me-2" href="../index.html">hrvester</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.4.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -44,7 +44,8 @@ erroneous intervals.</p>
 <span>  <span class="va">rr_segment</span>,</span>
 <span>  is_valid <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="cn">TRUE</span>, <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">rr_segment</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  window_size <span class="op">=</span> <span class="fl">7</span>,</span>
-<span>  threshold <span class="op">=</span> <span class="fl">0.2</span></span>
+<span>  threshold <span class="op">=</span> <span class="fl">0.2</span>,</span>
+<span>  centered_window <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -69,6 +70,10 @@ be odd). Defaults to 7.</p></dd>
 <dt id="arg-threshold">threshold<a class="anchor" aria-label="anchor" href="#arg-threshold"></a></dt>
 <dd><p>A numeric value representing the maximum allowed
 proportional deviation from the moving median. Defaults to 0.2 (20%).</p></dd>
+
+
+<dt id="arg-centered">centered<a class="anchor" aria-label="anchor" href="#arg-centered"></a></dt>
+<dd><p>A logical value indicating whether the moving window should be centered. Defaults to FALSE.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -108,9 +113,9 @@ invalid, the validity remains unchanged.</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Print the results</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">is_valid</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  [1]  TRUE  TRUE FALSE FALSE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [1]  TRUE  TRUE  TRUE FALSE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">cleaned_rr</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.80 0.90 0.85 0.95 0.88 0.92 0.80</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.80 0.90 0.70 0.85 0.95 0.88 0.92 0.80</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Example with pre-existing invalid intervals</span></span></span>
 <span class="r-in"><span><span class="va">is_valid_initial</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span></span>
@@ -123,10 +128,10 @@ invalid, the validity remains unchanged.</p>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">result2</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $is_valid</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  [1]  TRUE FALSE FALSE FALSE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [1]  TRUE  TRUE FALSE FALSE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $cleaned_rr</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.80 0.85 0.95 0.88 0.92 0.80</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.80 0.90 0.85 0.95 0.88 0.92 0.80</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

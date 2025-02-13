@@ -11,7 +11,7 @@ moving average validation."><meta property="og:image" content="https://sims1253.
 
     <a class="navbar-brand me-2" href="../index.html">hrvester</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.4.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -45,10 +45,12 @@ moving average validation.</p>
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">rr_full_phase_processing</span><span class="op">(</span></span>
 <span>  <span class="va">rr_segment</span>,</span>
+<span>  is_valid <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="cn">TRUE</span>, <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">rr_segment</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  min_rr <span class="op">=</span> <span class="fl">272</span>,</span>
 <span>  max_rr <span class="op">=</span> <span class="fl">2000</span>,</span>
 <span>  window_size <span class="op">=</span> <span class="fl">7</span>,</span>
-<span>  threshold <span class="op">=</span> <span class="fl">0.2</span></span>
+<span>  threshold <span class="op">=</span> <span class="fl">0.2</span>,</span>
+<span>  centered_window <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -123,9 +125,10 @@ validation steps.</p></li>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Print the results</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">is_valid</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  [1] FALSE FALSE  TRUE  TRUE FALSE  TRUE  TRUE  TRUE FALSE  TRUE  TRUE  TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [1] FALSE  TRUE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [13] FALSE</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">cleaned_rr</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 750 800 820 780 850 800 830 790</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 500</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Example with custom parameters</span></span></span>
 <span class="r-in"><span><span class="va">rr_data2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span></span>
@@ -141,10 +144,10 @@ validation steps.</p></li>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">result2</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $is_valid</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE  TRUE FALSE  TRUE FALSE FALSE  TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE  TRUE FALSE FALSE FALSE FALSE FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $cleaned_rr</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 600 700 750</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 600</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
