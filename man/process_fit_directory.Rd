@@ -14,7 +14,11 @@ process_fit_directory(
   max_rr = 2000,
   window_size = 7,
   threshold = 0.2,
-  clear_cache = FALSE
+  centered_transition = TRUE,
+  centered_window = FALSE,
+  warmup = 70,
+  clear_cache = FALSE,
+  sport_name = "OST"
 )
 }
 \arguments{

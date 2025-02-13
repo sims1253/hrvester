@@ -9,7 +9,8 @@ split_rr_phases(
   session_info,
   laying_time = 180,
   transition_time = 20,
-  standing_time = 180
+  standing_time = 180,
+  centered_transition = TRUE
 )
 }
 \arguments{
@@ -30,6 +31,10 @@ in seconds). Must be non-negative.}
 
 \item{standing_time}{Numeric. The duration of the standing phase (e.g., in
 seconds). Must be non-negative.}
+
+\item{centered_transition}{Indicates if the transition time should be split
+into laying and standig times. FALSE, if transition time is only taken
+from the laying phase.}
 }
 \value{
 A data frame with the same data as \code{rr_intervals}, but with two

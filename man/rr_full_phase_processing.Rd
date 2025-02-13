@@ -6,10 +6,12 @@
 \usage{
 rr_full_phase_processing(
   rr_segment,
+  is_valid = rep(TRUE, length(rr_segment)),
   min_rr = 272,
   max_rr = 2000,
   window_size = 7,
-  threshold = 0.2
+  threshold = 0.2,
+  centered_window = FALSE
 )
 }
 \arguments{

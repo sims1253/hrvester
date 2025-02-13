@@ -269,7 +269,14 @@ extract_session_data <- function(fit_object) {
 #' @param max_rr Maximum RR interval in milliseconds
 #' @param window_size Window size for moving average calculation
 #' @param threshold Threshold for artifact detection
+#' @param centered_window Logical indicating whether the moving window should
+#'   be centered. Defaults to FALSE.
+#' @param centered_transition Logical indicating whether the transition time
+#'   should be split into laying and standing times. FALSE, if transition time
+#'   is only taken from the laying phase.
+#' @param warmup Time in seconds from the start that should be discarded
 #' @return Tibble containing HRV metrics
+#' @param sport_name Name of the sport for the fit file. Used as a filter.
 #' @export
 process_fit_file <- function(
     file_path,
@@ -279,9 +286,23 @@ process_fit_file <- function(
     min_rr = 272,
     max_rr = 2000,
     window_size = 7,
-    threshold = 0.2) {
+    threshold = 0.2,
+    centered_transition = TRUE,
+    centered_window = FALSE,
+    warmup = 70,
+    sport_name = "OST") {
   fit_object <- read_fit_file(file_path = file_path)
   session <- extract_session_data(fit_object = fit_object)
+
+  if (FITfileR::getMessagesByType(fit_object, "sport")$name != sport_name) {
+    return(result <- create_empty_result(
+      file_path = file_path,
+      session_date = session$date,
+      week = session$week,
+      time_of_day = session$time_of_day
+    ))
+  }
+
   hr_data <- get_HR(fit_object)
 
   # Calculate metrics
@@ -291,45 +312,82 @@ process_fit_file <- function(
   )
 
   hrr_metrics <- calculate_hrr(hr_data[181:240], resting_hr)
-  tryCatch(
-    {
-      rr_intervals <- extract_rr_data(fit_object)
-    },
-    error = function(e) {
-      return(create_empty_result(file_path, NA, NA, NA))
-    }
-  )
+
+  rr_intervals <- extract_rr_data(fit_object)
+
   rr_intervals$time <- rr_intervals$time * 1000
+
   rr_intervals <- split_rr_phases(
     rr_intervals,
     session,
     laying_time = laying_time,
     transition_time = transition_time,
-    standing_time = standing_time
+    standing_time = standing_time,
+    centered_transition = centered_transition
   )
+  rr_intervals$is_valid <- TRUE
+  end_of_warmup_index <- nrow(dplyr::filter(rr_intervals, elapsed_time <= warmup))
+  # TODO this could probably be done smarter with changepoint analysis of the
+  # sdnn or something similar
+  rr_intervals$is_valid[1:end_of_warmup_index] <- FALSE
+
   laying_data <- rr_full_phase_processing(
-    dplyr::filter(rr_intervals, phase == "laying")$time,
+    rr_segment = dplyr::filter(rr_intervals, phase == "laying")$time,
+    is_valid = dplyr::filter(rr_intervals, phase == "laying")$is_valid,
     min_rr = min_rr,
     max_rr = max_rr,
     window_size = window_size,
-    threshold = threshold
+    threshold = 0.17,
+    centered_window = centered_window
   )
-  laying_hrv <- calculate_hrv(laying_data$cleaned_rr)
+  rr_intervals$is_valid[
+    1:(which.min(rr_intervals$phase == "laying") - 1)
+  ] <- laying_data$is_valid
+
+  laying_hrv <- calculate_hrv(dplyr::filter(
+    rr_intervals,
+    phase == "laying",
+    is_valid,
+    elapsed_time > warmup
+  )$time)
+
+  # Debugging leftover
+  # rr_intervals %>%
+  #   filter(phase == "laying") %>%
+  #   ggplot(aes(x = elapsed_time, y = time, color = is_valid)) +
+  #   geom_point() +
+  #   ggtitle(calculate_hrv(laying_data$cleaned_rr)$rmssd) +
+  #   coord_cartesian(ylim = c(0, 1500))
+
   transition_data <- rr_full_phase_processing(
-    dplyr::filter(rr_intervals, phase == "transition")$time,
+    rr_segment = dplyr::filter(rr_intervals, phase == "transition")$time,
+    is_valid = dplyr::filter(rr_intervals, phase == "transition")$is_valid,
     min_rr = min_rr,
     max_rr = max_rr,
     window_size = window_size,
-    threshold = threshold
+    threshold = 0.17,
+    centered_window = centered_window
   )
+  rr_intervals$is_valid[
+    min(which(rr_intervals$phase == "transition")):max(which(rr_intervals$phase == "transition"))
+  ] <- transition_data$is_valid
+
   transitioning_hrv <- calculate_hrv(transition_data$cleaned_rr)
+
   standing_data <- rr_full_phase_processing(
-    dplyr::filter(rr_intervals, phase == "standing")$time,
+    rr_segment = dplyr::filter(rr_intervals, phase == "standing")$time,
+    is_valid = dplyr::filter(rr_intervals, phase == "standing")$is_valid,
     min_rr = min_rr,
     max_rr = max_rr,
     window_size = window_size,
-    threshold = threshold
+    threshold = 0.2,
+    centered_window = centered_window
   )
+  rr_intervals$is_valid[
+    min(which(rr_intervals$phase == "standing")):max(which(rr_intervals$phase == "standing"))
+  ] <- standing_data$is_valid
+  transitioning_hrv <- calculate_hrv(standing_data$cleaned_rr)
+
   standing_hrv <- calculate_hrv(standing_data$cleaned_rr)
 
   # Process if we have enough data
@@ -354,7 +412,12 @@ process_fit_file <- function(
       activity = FITfileR::getMessagesByType(fit_object, "sport")$name
     )
   } else {
-    result <- create_empty_result(file_path, date, week, time_of_day)
+    result <- create_empty_result(
+      file_path = file_path,
+      session_date = session$date,
+      week = session$week,
+      time_of_day = session$time_of_day
+    )
   }
   return(result)
 }
@@ -365,15 +428,15 @@ process_fit_file <- function(
 #' Helper function to create empty result row with NA values
 #'
 #' @param file_path Source file path
-#' @param date Date of measurement
+#' @param session_date Date of measurement
 #' @param week Week number
 #' @param time_of_day Time of day
 #' @return Tibble with NA values
 #' @keywords internal
-create_empty_result <- function(file_path, date, week, time_of_day) {
+create_empty_result <- function(file_path, session_date, week, time_of_day) {
   tibble::tibble(
     source_file = file_path,
-    date = as.character(date),
+    date = as.character(session_date),
     week = week,
     time_of_day = time_of_day,
     laying_rmssd = NA_real_,
@@ -421,7 +484,11 @@ process_fit_directory <- function(
     max_rr = 2000,
     window_size = 7,
     threshold = 0.2,
-    clear_cache = FALSE) {
+    centered_transition = TRUE,
+    centered_window = FALSE,
+    warmup = 70,
+    clear_cache = FALSE,
+    sport_name = "OST") {
   # Validate inputs
   validate_inputs(dir_path, cache_file, clear_cache)
 
@@ -465,7 +532,11 @@ process_fit_directory <- function(
           min_rr = min_rr,
           max_rr = max_rr,
           window_size = window_size,
-          threshold = threshold
+          threshold = threshold,
+          centered_transition = centered_transition,
+          centered_window = centered_window,
+          warmup = warmup,
+          sport_name = sport_name
         )
         p()
         return(result)
@@ -484,7 +555,7 @@ process_fit_directory <- function(
     safe_file_operation(
       readr::write_csv,
       x = all_data,
-      file =cache_file
+      file = cache_file
     )
 
     return(all_data)

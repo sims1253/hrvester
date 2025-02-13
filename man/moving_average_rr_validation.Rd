@@ -8,7 +8,8 @@ moving_average_rr_validation(
   rr_segment,
   is_valid = rep(TRUE, length(rr_segment)),
   window_size = 7,
-  threshold = 0.2
+  threshold = 0.2,
+  centered_window = FALSE
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ be odd). Defaults to 7.}
 
 \item{threshold}{A numeric value representing the maximum allowed
 proportional deviation from the moving median. Defaults to 0.2 (20\%).}
+
+\item{centered}{A logical value indicating whether the moving window should be centered. Defaults to FALSE.}
 }
 \value{
 A list containing two elements:
