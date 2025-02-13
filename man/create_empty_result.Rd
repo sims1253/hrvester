@@ -4,12 +4,12 @@
 \alias{create_empty_result}
 \title{Create empty result row}
 \usage{
-create_empty_result(file_path, date, week, time_of_day)
+create_empty_result(file_path, session_date, week, time_of_day)
 }
 \arguments{
 \item{file_path}{Source file path}
 
-\item{date}{Date of measurement}
+\item{session_date}{Date of measurement}
 
 \item{week}{Week number}
 

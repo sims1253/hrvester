@@ -12,7 +12,11 @@ process_fit_file(
   min_rr = 272,
   max_rr = 2000,
   window_size = 7,
-  threshold = 0.2
+  threshold = 0.2,
+  centered_transition = TRUE,
+  centered_window = FALSE,
+  warmup = 70,
+  sport_name = "OST"
 )
 }
 \arguments{
@@ -31,6 +35,17 @@ process_fit_file(
 \item{window_size}{Window size for moving average calculation}
 
 \item{threshold}{Threshold for artifact detection}
+
+\item{centered_transition}{Logical indicating whether the transition time
+should be split into laying and standing times. FALSE, if transition time
+is only taken from the laying phase.}
+
+\item{centered_window}{Logical indicating whether the moving window should
+be centered. Defaults to FALSE.}
+
+\item{warmup}{Time in seconds from the start that should be discarded}
+
+\item{sport_name}{Name of the sport for the fit file. Used as a filter.}
 }
 \value{
 Tibble containing HRV metrics
