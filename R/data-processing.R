@@ -72,7 +72,7 @@ extract_rr_data <- function(
   hrv_data <- FITfileR::hrv(fit_object)
   if (is.null(hrv_data) || nrow(hrv_data) == 0) {
     warning("No HRV data found in FIT file")
-    return(list(time = numeric()))
+    return(tibble(time = numeric()))
   }
 
   return(hrv_data)
