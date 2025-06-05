@@ -286,7 +286,8 @@ process_fit_file <- function(
     min_rr = 272,
     max_rr = 2000,
     window_size = 7,
-    threshold = 0.2,
+    threshold_stand = 0.2, # Renamed from threshold
+    threshold_lay_trans = 0.17, # New parameter
     centered_transition = TRUE,
     centered_window = FALSE,
     warmup = 70,
@@ -336,20 +337,18 @@ process_fit_file <- function(
     is_valid = dplyr::filter(rr_intervals, phase == "laying")$is_valid,
     min_rr = min_rr,
     max_rr = max_rr,
-    window_size = window_size,
-    threshold = 0.17,
+    mav_window_size = window_size,
+    mav_threshold = threshold_lay_trans, # Use new parameter
     centered_window = centered_window
   )
-  rr_intervals$is_valid[
-    1:(which.min(rr_intervals$phase == "laying") - 1)
-  ] <- laying_data$is_valid
+  # Correctly map is_valid flags back for the laying phase
+  if (length(rr_intervals$is_valid[rr_intervals$phase == "laying"]) == length(laying_data$is_valid)) {
+    rr_intervals$is_valid[rr_intervals$phase == "laying"] <- laying_data$is_valid
+  } else {
+    warning("Length mismatch when mapping is_valid for laying phase. Check phase definitions and data processing.")
+  }
 
-  laying_hrv <- calculate_hrv(dplyr::filter(
-    rr_intervals,
-    phase == "laying",
-    is_valid,
-    elapsed_time > warmup
-  )$time)
+  laying_hrv <- calculate_hrv(laying_data$cleaned_rr) # Use cleaned_rr
 
   # Debugging leftover
   # rr_intervals %>%
@@ -364,31 +363,37 @@ process_fit_file <- function(
     is_valid = dplyr::filter(rr_intervals, phase == "transition")$is_valid,
     min_rr = min_rr,
     max_rr = max_rr,
-    window_size = window_size,
-    threshold = 0.17,
+    mav_window_size = window_size,
+    mav_threshold = threshold_lay_trans, # Use new parameter
     centered_window = centered_window
   )
-  rr_intervals$is_valid[
-    min(which(rr_intervals$phase == "transition")):max(which(rr_intervals$phase == "transition"))
-  ] <- transition_data$is_valid
+  # Correctly map is_valid flags back for the transition phase
+  if (length(rr_intervals$is_valid[rr_intervals$phase == "transition"]) == length(transition_data$is_valid)) {
+    rr_intervals$is_valid[rr_intervals$phase == "transition"] <- transition_data$is_valid
+  } else {
+    warning("Length mismatch when mapping is_valid for transition phase. Check phase definitions and data processing.")
+  }
 
-  transitioning_hrv <- calculate_hrv(transition_data$cleaned_rr)
+  transitioning_hrv <- calculate_hrv(transition_data$cleaned_rr) # Corrected: uses transition_data
 
   standing_data <- rr_full_phase_processing(
     rr_segment = dplyr::filter(rr_intervals, phase == "standing")$time,
     is_valid = dplyr::filter(rr_intervals, phase == "standing")$is_valid,
     min_rr = min_rr,
     max_rr = max_rr,
-    window_size = window_size,
-    threshold = 0.2,
+    mav_window_size = window_size,
+    mav_threshold = threshold_stand, # Use renamed parameter
     centered_window = centered_window
   )
-  rr_intervals$is_valid[
-    min(which(rr_intervals$phase == "standing")):max(which(rr_intervals$phase == "standing"))
-  ] <- standing_data$is_valid
-  transitioning_hrv <- calculate_hrv(standing_data$cleaned_rr)
+  # Correctly map is_valid flags back for the standing phase
+  if (length(rr_intervals$is_valid[rr_intervals$phase == "standing"]) == length(standing_data$is_valid)) {
+    rr_intervals$is_valid[rr_intervals$phase == "standing"] <- standing_data$is_valid
+  } else {
+    warning("Length mismatch when mapping is_valid for standing phase. Check phase definitions and data processing.")
+  }
+  # Removed erroneous reassignment: transitioning_hrv <- calculate_hrv(standing_data$cleaned_rr)
 
-  standing_hrv <- calculate_hrv(standing_data$cleaned_rr)
+  standing_hrv <- calculate_hrv(standing_data$cleaned_rr) # This is correct for standing_hrv
 
   # Process if we have enough data
   if (length(laying_data$is_valid) >= 2 && length(standing_data$is_valid) >= 2) {

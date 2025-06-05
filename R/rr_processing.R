@@ -351,7 +351,7 @@ moving_average_rr_validation <- function(
     is_valid = rep(TRUE, length(rr_segment)),
     window_size = 7,
     threshold = 0.2,
-    centered_window = FALSE) {
+    centered_window = TRUE) {
   # Input Validation Checks
   validate_rr(rr_segment)
   if (length(rr_segment) == 0) {
@@ -517,9 +517,9 @@ rr_full_phase_processing <- function(
     is_valid = rep(TRUE, length(rr_segment)),
     min_rr = 272,
     max_rr = 2000,
-    window_size = 7,
-    threshold = 0.2,
-    centered_window = FALSE) {
+    centered_window = TRUE,
+    mav_window_size = 7,
+    mav_threshold = 0.2) {
   validate_rr(rr_segment)
 
   running_result <- rr_validate_measure_artifacts(
@@ -537,9 +537,9 @@ rr_full_phase_processing <- function(
   running_result <- moving_average_rr_validation(
     rr_segment = rr_segment,
     is_valid = running_result$is_valid,
-    window_size = window_size,
-    threshold = threshold,
-    centered_window = centered_window
+    window_size = mav_window_size, # Use the new parameter
+    threshold = mav_threshold,   # Use the new parameter
+    centered_window = centered_window # Keep this as is
   )
 
   return(return(list(
