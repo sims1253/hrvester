@@ -12,6 +12,7 @@
 #'   calculation.  Defaults to 5.2 as suggested in the paper.
 #' @param c1 Constant for ectopic beat detection boundary. Defaults to 0.13.
 #' @param c2 Constant for ectopic beat detection boundary. Defaults to 0.17.
+#' @param qd_window Window size for quartile deviation calculation. Defaults to 91.
 #'
 #' @return A `dplyr::tibble` with the following columns:
 #'   * `time`: The original RR intervals (in seconds).
@@ -42,15 +43,10 @@
 #' rr_data$time[70] <- rr_data$time[70] - 0.4 # Extra beat
 #'
 #' # Detect and classify the artefacts
-#' rr_data_classified <- detect_hrv_artefacts(rr_data)
+#' rr_data_classified <- classify_hrv_artefacts_lipponen(rr_data)
 #'
 #' # Print the rows with artefacts
 #' print(rr_data_classified %>% filter(classification != "normal"))
-#'
-#' # Example with the Fantasia database data (subset)
-#' data("fantasia_example", package = "cardio.ts")
-#' fantasia_classified <- detect_hrv_artefacts(fantasia_example)
-#' print(fantasia_classified %>% filter(classification != "normal"))
 #'
 #' @seealso [stats::quantile()] for quartile calculations, [zoo::rollapply()]
 #'  for rolling window calculations.
@@ -65,7 +61,13 @@
 #'
 #' @importFrom stats quantile
 #' @importFrom zoo rollapply rollmedian
-classify_hrv_artefacts_lipponen <- function(data, alpha = 5.2, c1 = 0.13, c2 = 0.17, qd_window = 91) {
+classify_hrv_artefacts_lipponen <- function(
+  data,
+  alpha = 5.2,
+  c1 = 0.13,
+  c2 = 0.17,
+  qd_window = 91
+) {
   # Input validation (Same as before)
   if (!inherits(data, "tbl_df")) {
     stop("Input 'data' must be a dplyr::tibble.")
@@ -87,7 +89,9 @@ classify_hrv_artefacts_lipponen <- function(data, alpha = 5.2, c1 = 0.13, c2 = 0
     if (all(is.na(x))) {
       return(0)
     }
-    (stats::quantile(x, 0.75, na.rm = TRUE) - stats::quantile(x, 0.25, na.rm = TRUE)) / 2
+    (stats::quantile(x, 0.75, na.rm = TRUE) -
+      stats::quantile(x, 0.25, na.rm = TRUE)) /
+      2
   }
 
   rr <- data$time
@@ -100,40 +104,36 @@ classify_hrv_artefacts_lipponen <- function(data, alpha = 5.2, c1 = 0.13, c2 = 0
   mrrs <- ifelse(mrrs < 0, 2 * mrrs, mrrs) # Scale mRRs
 
   # 2. Calculate time-varying thresholds (Th1 and Th2)
-  th1 <- unname(alpha * zoo::rollapply(abs(drrs), width = qd_window, FUN = qd, fill = NA, align = "center", partial = TRUE))
-  th2 <- unname(alpha * zoo::rollapply(abs(mrrs), width = qd_window, FUN = qd, fill = NA, align = "center", partial = TRUE))
+  th1 <- unname(
+    alpha *
+      zoo::rollapply(
+        abs(drrs),
+        width = qd_window,
+        FUN = qd,
+        fill = NA,
+        align = "center",
+        partial = TRUE
+      )
+  )
+  th2 <- unname(
+    alpha *
+      zoo::rollapply(
+        abs(mrrs),
+        width = qd_window,
+        FUN = qd,
+        fill = NA,
+        align = "center",
+        partial = TRUE
+      )
+  )
 
   # 3. Normalize dRRs and mRRs
-  drr <- drrs / (th1 + 1e-9)
-  mrr <- mrrs / (th2 + 1e-9)
+  drr <- drrs / (th1 + 1e-6) # Use smaller epsilon for better sensitivity
+  mrr <- mrrs / (th2 + 1e-6)
 
   # 4. Decision Algorithm (using vectorized operations)
   data <- data %>%
     dplyr::mutate(classification = "normal")
-
-  ## --- Ectopic beat detection (Subspace S1) ---
-  s11 <- drr
-  s12 <- zoo::rollapply(
-    data = drr,
-    width = 3,
-    FUN = function(x) {
-      center_val <- x[2]
-      if (is.na(center_val)) {
-        return(NA)
-      } else if (center_val > 0) {
-        return(max(x, na.rm = TRUE))
-      } else {
-        return(min(x, na.rm = TRUE))
-      }
-    },
-    fill = NA,
-    align = "center",
-    partial = TRUE # Allow partial windows at the edges
-  )
-
-  ectopic_condition <- unname((s11 > 1 & s12 < (-c1 * s11 + c2)) | (s11 < -1 & s12 > (-c1 * s11 - c2)))
-  data <- data %>%
-    dplyr::mutate(classification = ifelse(ectopic_condition & classification == "normal", "ectopic", classification))
 
   # --- Long/Short beat detection (Subspace S2) + Missed/Extra ---
   s21 <- drr
@@ -155,26 +155,68 @@ classify_hrv_artefacts_lipponen <- function(data, alpha = 5.2, c1 = 0.13, c2 = 0
     partial = TRUE
   )
 
-  long_short_condition <- unname((abs(drr) > 1 & (
-    (s21 > 1 & s22 < -1) |
-      (s21 < -1 & s22 > 1)
-  )) | abs(mrr) > 3)
+  long_short_condition <- unname(
+    (abs(drr) > 1 &
+      ((s21 > 1 & s22 < -1) |
+        (s21 < -1 & s22 > 1))) |
+      abs(mrr) > 3
+  )
 
   data <- data %>%
-    dplyr::mutate(classification = ifelse(long_short_condition & classification == "normal",
-      ifelse(drr > 0, "long", "short"),
-      classification
-    ))
+    dplyr::mutate(
+      classification = ifelse(
+        long_short_condition & classification == "normal",
+        ifelse(drr > 0, "long", "short"),
+        classification
+      )
+    )
 
   # Missed beat detection
-  missed_condition <- unname(data$classification == "long" & (abs(rr / 2 - medrr) < th2))
+  missed_condition <- unname(
+    data$classification == "long" & (abs(rr / 2 - medrr) < th2)
+  )
   data <- data %>%
-    dplyr::mutate(classification = ifelse(missed_condition & classification %in% c("long", "normal"), "missed", classification))
+    dplyr::mutate(
+      classification = ifelse(
+        missed_condition & classification %in% c("long", "normal"),
+        "missed",
+        classification
+      )
+    )
 
   # Extra beat detection
-  extra_condition <- unname(data$classification == "short" & c(FALSE, (abs(rr[-n] + rr[-1] - medrr[-n]) < th2[-n])))
+  extra_condition <- unname(
+    data$classification == "short" &
+      c(FALSE, (abs(rr[-n] + rr[-1] - medrr[-n]) < th2[-n]))
+  )
   data <- data %>%
-    dplyr::mutate(classification = ifelse(extra_condition & classification %in% c("short", "normal"), "extra", classification))
+    dplyr::mutate(
+      classification = ifelse(
+        extra_condition & classification %in% c("short", "normal"),
+        "extra",
+        classification
+      )
+    )
+
+  ## --- Ectopic beat detection (Subspace S1) - Applied after missed/extra ---
+  s11 <- drr
+  # For ectopic detection, s12 should represent the following beat in sequence
+  # This implements the PNP (Premature-Normal-Post) and NPN patterns
+  s12 <- c(drr[-1], NA) # Shift drr by one position to get next value
+
+  # Ectopic detection for patterns not already classified as missed/extra
+  ectopic_condition <- unname(
+    (s11 > 1 & s12 < -1 & s12 < (-c1 * s11 + c2)) |
+      (s11 < -1 & s12 > 1 & s12 > (-c1 * s11 - c2))
+  )
+  data <- data %>%
+    dplyr::mutate(
+      classification = ifelse(
+        ectopic_condition & classification %in% c("long", "short", "normal"),
+        "ectopic",
+        classification
+      )
+    )
 
   return(data)
 }
@@ -202,15 +244,21 @@ classify_hrv_artefacts_lipponen <- function(data, alpha = 5.2, c1 = 0.13, c2 = 0
 #'      `"interpolated"`. Inserted "missed" beats will have the classification
 #'     `"missed"`. Removed beats will not be present.
 #'
-#' @seealso [detect_hrv_artefacts()], [signal::interp1()]
+#' @seealso [classify_hrv_artefacts_lipponen()], [signal::interp1()]
 #'
 #' @export
 #' @importFrom signal interp1
 #' @importFrom dplyr %>% mutate bind_rows filter
+#' @importFrom stats runmed sd spline
+#' @importFrom methods is
 correct_hrv_artefacts_lipponen <- function(data) {
-  if (!inherits(data, "tbl_df") ||
-    !all(c("time", "classification") %in% colnames(data))) {
-    stop("Input 'data' must be a tibble with 'time' and 'classification' columns (output of detect_hrv_artefacts).")
+  if (
+    !inherits(data, "tbl_df") ||
+      !all(c("time", "classification") %in% colnames(data))
+  ) {
+    stop(
+      "Input 'data' must be a tibble with 'time' and 'classification' columns (output of detect_hrv_artefacts)."
+    )
   }
   data$original_time <- data$time
   data$correction <- "none"
@@ -218,32 +266,49 @@ correct_hrv_artefacts_lipponen <- function(data) {
   n <- length(rr)
 
   # --- 1. Interpolation (Ectopic, Long, Short) ---
-  interp_indices <- which(data$classification %in% c("ectopic", "long", "short"))
+  interp_indices <- which(
+    data$classification %in% c("ectopic", "long", "short")
+  )
   if (length(interp_indices) > 0) {
     # Use cubic spline interpolation, handling edge cases with padding
     not_interp_indices <- setdiff(1:nrow(data), interp_indices)
     if (length(not_interp_indices) < 2) {
-      warning("Less than two non-interpolated beats. Returning the original data.")
+      warning(
+        "Less than two non-interpolated beats. Returning the original data."
+      )
       return(data)
     }
 
     # TODO add spline interpolation with not-a-knot end conditions for transition and
     # PCHIP for ≤3-beat artifacts, spline for longer gaps for standing
     if (any(interp_indices <= 3) | any(interp_indices >= n - 2)) {
-      rr_padded <- c(rep(median(rr[1:10]), 3), rr, rep(median(rr[(n - 10):n]), 3))
+      rr_padded <- c(
+        rep(median(rr[1:10]), 3),
+        rr,
+        rep(median(rr[(n - 10):n]), 3)
+      )
       interp_indices_padded <- interp_indices + 3
       not_interp_padded <- setdiff(1:length(rr_padded), interp_indices_padded)
-      rr_padded[interp_indices_padded] <- signal::interp1(x = not_interp_padded, y = rr_padded[not_interp_padded], xi = interp_indices_padded, method = "pchip")
+      rr_padded[interp_indices_padded] <- signal::interp1(
+        x = not_interp_padded,
+        y = rr_padded[not_interp_padded],
+        xi = interp_indices_padded,
+        method = "pchip"
+      )
       rr_corrected <- rr_padded[4:(length(rr_padded) - 3)]
     } else {
       rr_corrected <- rr
-      rr_corrected[interp_indices] <- signal::interp1(x = not_interp_indices, y = rr[not_interp_indices], xi = interp_indices, method = "pchip")
+      rr_corrected[interp_indices] <- signal::interp1(
+        x = not_interp_indices,
+        y = rr[not_interp_indices],
+        xi = interp_indices,
+        method = "pchip"
+      )
     }
 
     data$time[interp_indices] <- rr_corrected[interp_indices]
     data$correction[interp_indices] <- "interpolated"
   }
-
 
   # --- 2. Remove Extra Beats ---
   data <- data %>%
@@ -255,7 +320,11 @@ correct_hrv_artefacts_lipponen <- function(data) {
   if (length(missed_indices) > 0) {
     for (i in rev(missed_indices)) {
       new_time <- data$time[i] / 2
-      new_row <- dplyr::tibble(time = new_time, classification = "missed", correction = "halved")
+      new_row <- dplyr::tibble(
+        time = new_time,
+        classification = "missed",
+        correction = "halved"
+      )
       data$time[i] <- new_time
       data <- dplyr::bind_rows(
         data[1:(i - 1), , drop = FALSE],
@@ -288,10 +357,10 @@ correct_hrv_artefacts_lipponen <- function(data) {
 #' @importFrom dplyr %>%
 calculate_hrv_rmssd <- function(data, ...) {
   # Detect and classify artefacts
-  classified_data <- detect_hrv_artefacts(data, ...)
+  classified_data <- classify_hrv_artefacts_lipponen(data, ...)
 
   # Correct the artefacts
-  corrected_data <- correct_hrv_beats(classified_data)
+  corrected_data <- correct_hrv_artefacts_lipponen(classified_data)
 
   # Calculate RMSSD on the *corrected* and *normal* beats
   rmssd_values <- corrected_data %>%
@@ -299,7 +368,11 @@ calculate_hrv_rmssd <- function(data, ...) {
     dplyr::summarise(rmssd = sqrt(mean(diff(time)^2))) %>%
     dplyr::pull(rmssd)
 
-  return(list(rmssd_values = rmssd_values, classified_data = classified_data, corrected_data = corrected_data))
+  return(list(
+    rmssd_values = rmssd_values,
+    classified_data = classified_data,
+    corrected_data = corrected_data
+  ))
 }
 
 #' Calculate RMSSD with Phase-Specific Artefact Correction (Orthostatic Test)
@@ -329,18 +402,19 @@ calculate_hrv_rmssd <- function(data, ...) {
 #'    * `aggregated_rmssd`: Aggregated RMSSD (mean of a ll segments).
 #'    * `n_segments`: Number of segments
 #' @export
-#' @importFrom dplyr %>% mutate lag filter lead case_when
+#' @importFrom dplyr %>% mutate lag filter lead case_when first
 calculate_rmssd_orthostatic_enhanced <- function(
-    data,
-    secondary_threshold_percent_lying = 20,
-    secondary_threshold_percent_standing = 20,
-    transition_exclusion_time = 45,
-    initial_stabilization_time = 60,
-    min_segment_length = 30,
-    min_segment_beats = 30,
-    ...) {
+  data,
+  secondary_threshold_percent_lying = 20,
+  secondary_threshold_percent_standing = 20,
+  transition_exclusion_time = 45,
+  initial_stabilization_time = 60,
+  min_segment_length = 30,
+  min_segment_beats = 30,
+  ...
+) {
   # --- 1. Initial Artefact Detection (L&T) ---
-  classified_data <- detect_hrv_artefacts(data, ...)
+  classified_data <- classify_hrv_artefacts_lipponen(data, ...)
 
   # --- 2. Define Phases and Exclusion Periods ---
   total_time <- sum(data$time)
@@ -375,8 +449,12 @@ calculate_rmssd_orthostatic_enhanced <- function(
       !artefact_or_neighbor, # Remove artefacts and neighbors
       !(phase == "transition"), # Remove transition phase
       !(phase == "lying" & cumulative_time <= initial_stabilization_time), # Remove initial stabilization
-      (phase == "lying" & (percent_change <= secondary_threshold_percent_lying / 100 | is.na(percent_change))) |
-        (phase == "standing" & (percent_change <= secondary_threshold_percent_standing / 100 | is.na(percent_change)))
+      (phase == "lying" &
+        (percent_change <= secondary_threshold_percent_lying / 100 |
+          is.na(percent_change))) |
+        (phase == "standing" &
+          (percent_change <= secondary_threshold_percent_standing / 100 |
+            is.na(percent_change)))
     )
 
   # --- 4. Segment-Based RMSSD Calculation (per phase) ---
@@ -385,11 +463,21 @@ calculate_rmssd_orthostatic_enhanced <- function(
     n_clean <- length(rr_clean)
 
     if (n_clean == 0) {
-      return(list(rmssd_values = NA, segment_lengths = NA, segment_beat_counts = NA, aggregated_rmssd = NA, n_segments = 0))
+      return(list(
+        rmssd_values = NA,
+        segment_lengths = NA,
+        segment_beat_counts = NA,
+        aggregated_rmssd = NA,
+        n_segments = 0
+      ))
     }
 
     # Identify segments (gaps between removed artefacts)
-    segment_indices <- c(1, which(diff(rr_data) > (1.5 * median(rr_data))) + 1, n_clean + 1) # Indices of segment starts.
+    segment_indices <- c(
+      1,
+      which(diff(rr_data) > (1.5 * median(rr_data))) + 1,
+      n_clean + 1
+    ) # Indices of segment starts.
 
     rmssd_values <- numeric(length(segment_indices) - 1)
     segment_lengths <- numeric(length(segment_indices) - 1)
@@ -429,19 +517,42 @@ calculate_rmssd_orthostatic_enhanced <- function(
     } else {
       aggregated_rmssd <- NA
     }
-    return(list(rmssd_values = rmssd_values, segment_lengths = segment_lengths, segment_beat_counts = segment_beat_counts, aggregated_rmssd = aggregated_rmssd, n_segments = valid_segments))
+    return(list(
+      rmssd_values = rmssd_values,
+      segment_lengths = segment_lengths,
+      segment_beat_counts = segment_beat_counts,
+      aggregated_rmssd = aggregated_rmssd,
+      n_segments = valid_segments
+    ))
   }
 
   lying_rr <- filtered_data$time[filtered_data$phase == "lying"]
   standing_rr <- filtered_data$time[filtered_data$phase == "standing"]
 
-  lying_results <- calculate_rmssd_segments(lying_rr, min_segment_length, min_segment_beats)
-  standing_results <- calculate_rmssd_segments(standing_rr, min_segment_length, min_segment_beats)
+  lying_results <- calculate_rmssd_segments(
+    lying_rr,
+    min_segment_length,
+    min_segment_beats
+  )
+  standing_results <- calculate_rmssd_segments(
+    standing_rr,
+    min_segment_length,
+    min_segment_beats
+  )
 
   # --- 5. Combine Results ---
-  all_rmssd_values <- c(lying_results$rmssd_values, standing_results$rmssd_values)
-  all_segment_lengths <- c(lying_results$segment_lengths, standing_results$segment_lengths)
-  all_segment_beat_counts <- c(lying_results$segment_beat_counts, standing_results$segment_beat_counts)
+  all_rmssd_values <- c(
+    lying_results$rmssd_values,
+    standing_results$rmssd_values
+  )
+  all_segment_lengths <- c(
+    lying_results$segment_lengths,
+    standing_results$segment_lengths
+  )
+  all_segment_beat_counts <- c(
+    lying_results$segment_beat_counts,
+    standing_results$segment_beat_counts
+  )
 
   if (length(all_rmssd_values) > 0) {
     aggregated_rmssd <- mean(all_rmssd_values)
@@ -450,8 +561,16 @@ calculate_rmssd_orthostatic_enhanced <- function(
   }
 
   return(list(
-    rmssd_lying = ifelse(length(lying_results$rmssd_values) > 0, mean(lying_results$rmssd_values), NA),
-    rmssd_standing = ifelse(length(standing_results$rmssd_values) > 0, mean(standing_results$rmssd_values), NA),
+    rmssd_lying = ifelse(
+      length(lying_results$rmssd_values) > 0,
+      mean(lying_results$rmssd_values),
+      NA
+    ),
+    rmssd_standing = ifelse(
+      length(standing_results$rmssd_values) > 0,
+      mean(standing_results$rmssd_values),
+      NA
+    ),
     rmssd_values = all_rmssd_values,
     segment_lengths = all_segment_lengths,
     segment_beat_counts = all_segment_beat_counts,
