@@ -5,3 +5,15 @@
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$
+^research$
+^fit_files$
+^example$
+^scratchpad\.md$
+^repomix-output\.xml$
+^air\.toml$
+^claude\.md$
+^README\.Rmd$
+^README\.html$
+^ROADMAP\.md$
+^CONTRIBUTING\.md$
+^full_data\.csv$
