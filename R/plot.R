@@ -10,9 +10,6 @@
 #'     \item "HR": Heart rate data
 #'     \item "RR": RR interval data
 #'   }
-#' @param filter_factor Numeric value used to filter RR intervals that are more
-#'   than filter_factor times smaller or larger than the previous value. Helps
-#'   remove suspected false readings. Default: 0.175
 #'
 #' @return A ggplot2 plot object
 #'
@@ -20,19 +17,17 @@
 #' @importFrom FITfileR readFitFile
 #' @importFrom dplyr "%>%"
 #' @importFrom ggplot2 ggplot geom_line geom_vline scale_x_continuous annotate aes xlab theme_bw ggtitle
-hrv_plot <- function(file_path, base = "HR", filter_factor = 0.175) {
+hrv_plot <- function(file_path, base = "HR") {
   fit_object <- FITfileR::readFitFile(file_path)
 
   # Extract RR intervals
   RR <- extract_rr_data(
-    fit_object = fit_object,
-    filter_factor = filter_factor
+    fit_object = fit_object
   )
   HR <- get_HR(fit_object = fit_object)
 
   metrics <- process_fit_file(
-    file_path = file_path,
-    filter_factor = filter_factor
+    file_path = file_path
   )
 
   standing_RR <- RR$standing
@@ -48,29 +43,51 @@ hrv_plot <- function(file_path, base = "HR", filter_factor = 0.175) {
       ggplot(aes(x = time, y = RR)) +
       geom_line() +
       geom_vline(xintercept = 180, linetype = "dashed", color = "red") +
-      scale_x_continuous(limits = c(0, 360), breaks = c(0, 60, 120, 180, 240, 300, 360), expand = c(0, 0)) +
-      annotate("text",
-        color = "red", x = 80, y = mean(standing_RR),
+      scale_x_continuous(
+        limits = c(0, 360),
+        breaks = c(0, 60, 120, 180, 240, 300, 360),
+        expand = c(0, 0)
+      ) +
+      annotate(
+        "text",
+        color = "red",
+        x = 80,
+        y = mean(standing_RR),
         label = paste0("SDNN(ms): ", metrics$laying_sdnn)
       ) +
-      annotate("text",
-        color = "red", x = 80, y = mean(standing_RR) - 0.04,
+      annotate(
+        "text",
+        color = "red",
+        x = 80,
+        y = mean(standing_RR) - 0.04,
         label = paste0("rMSSD(ms): ", metrics$laying_rmssd)
       ) +
-      annotate("text",
-        color = "red", x = 80, y = mean(standing_RR) - 0.08,
+      annotate(
+        "text",
+        color = "red",
+        x = 80,
+        y = mean(standing_RR) - 0.08,
         label = paste0("resting HR(bpm): ", metrics$laying_resting_hr)
       ) +
-      annotate("text",
-        color = "red", x = 280, y = mean(laying_RR) + 0.1,
+      annotate(
+        "text",
+        color = "red",
+        x = 280,
+        y = mean(laying_RR) + 0.1,
         label = paste0("SDNN(ms): ", metrics$standing_sdnn)
       ) +
-      annotate("text",
-        color = "red", x = 280, y = mean(laying_RR) + 0.06,
+      annotate(
+        "text",
+        color = "red",
+        x = 280,
+        y = mean(laying_RR) + 0.06,
         label = paste0("rMSSD(ms): ", metrics$standing_rmssd)
       ) +
-      annotate("text",
-        color = "red", x = 218, y = min(RR$RR),
+      annotate(
+        "text",
+        color = "red",
+        x = 218,
+        y = min(RR$RR),
         label = paste0("max HR(bpm): ", max(HR))
       ) +
       xlab("Time (s)") +
@@ -86,28 +103,46 @@ hrv_plot <- function(file_path, base = "HR", filter_factor = 0.175) {
         breaks = c(0, 60, 120, 180, 240, 300, 360),
         expand = c(0, 0)
       ) +
-      annotate("text",
-        color = "red", x = 80, y = mean(HR[180:length(HR)]) + 15,
+      annotate(
+        "text",
+        color = "red",
+        x = 80,
+        y = mean(HR[180:length(HR)]) + 15,
         label = paste0("SDNN(ms): ", metrics$laying_sdnn)
       ) +
-      annotate("text",
-        color = "red", x = 80, y = mean(HR[180:length(HR)]) + 11,
+      annotate(
+        "text",
+        color = "red",
+        x = 80,
+        y = mean(HR[180:length(HR)]) + 11,
         label = paste0("rMSSD(ms): ", metrics$laying_rmssd)
       ) +
-      annotate("text",
-        color = "red", x = 80, y = mean(HR[180:length(HR)]) + 7,
+      annotate(
+        "text",
+        color = "red",
+        x = 80,
+        y = mean(HR[180:length(HR)]) + 7,
         label = paste0("Resting HR(bpm): ", metrics$laying_resting_hr)
       ) +
-      annotate("text",
-        color = "red", x = 280, y = mean(HR[1:180]) + 5,
+      annotate(
+        "text",
+        color = "red",
+        x = 280,
+        y = mean(HR[1:180]) + 5,
         label = paste0("SDNN(ms): ", metrics$standing_sdnn)
       ) +
-      annotate("text",
-        color = "red", x = 280, y = mean(HR[1:180]) + 1,
+      annotate(
+        "text",
+        color = "red",
+        x = 280,
+        y = mean(HR[1:180]) + 1,
         label = paste0("rMSSD(ms): ", metrics$standing_rmssd)
       ) +
-      annotate("text",
-        color = "red", x = 218, y = max(HR[10:length(HR)]),
+      annotate(
+        "text",
+        color = "red",
+        x = 218,
+        y = max(HR[10:length(HR)]),
         label = paste0("max HR(bpm): ", max(HR))
       ) +
       xlab("Time (s)") +
@@ -132,7 +167,7 @@ hrv_plot <- function(file_path, base = "HR", filter_factor = 0.175) {
 #'
 #' @export
 #' @importFrom dplyr "%>%" group_by summarise filter across bind_rows as_tibble
-#' @importFrom ggplot2 ggplot geom_point geom_line geom_hline facet_grid theme_bw aes
+#' @importFrom ggplot2 ggplot geom_point geom_line geom_hline facet_grid theme_bw aes ylab
 hrv_trend_plot <- function(metrics, just_rssme = FALSE) {
   metrics <- dplyr::select(metrics, !c(source_file, package_version, activity))
   metrics <- calculate_moving_averages(metrics)
@@ -209,41 +244,4 @@ hrv_trend_plot <- function(metrics, just_rssme = FALSE) {
       facet_grid(metric ~ time_of_day, scales = "free_y") +
       theme_bw()
   }
-}
-
-#' Plot HRV trends
-#'
-#' Creates a trend plot of RMSSD values with a moving average and normal range
-#' shading.
-#'
-#' @param data Data frame containing HRV metrics
-#'
-#' @return A ggplot2 plot object
-#'
-#' @export
-#' @importFrom ggplot2 ggplot geom_line geom_ribbon scale_color_manual scale_fill_manual theme_minimal labs
-plot_hrv_trends <- function(data) {
-  data %>%
-    calculate_moving_averages() %>%
-    ggplot2::ggplot(aes(x = date)) +
-    ggplot2::geom_line(aes(y = laying_rmssd, color = "Daily RMSSD")) +
-    ggplot2::geom_line(aes(y = rmssd_ma, color = "7-day MA"), size = 1) +
-    ggplot2::geom_ribbon(
-      aes(
-        ymin = rmssd_ma * 0.9,
-        ymax = rmssd_ma * 1.1,
-        fill = "Normal Range"
-      ),
-      alpha = 0.2
-    ) +
-    ggplot2::scale_color_manual(
-      values = c("Daily RMSSD" = "grey50", "7-day MA" = "blue")
-    ) +
-    ggplot2::scale_fill_manual(values = c("Normal Range" = "green")) +
-    ggplot2::theme_minimal() +
-    ggplot2::labs(
-      title = "HRV Trend with Moving Average",
-      y = "RMSSD",
-      color = "Metric"
-    )
 }

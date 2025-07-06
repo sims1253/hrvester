@@ -1,4 +1,4 @@
-#' ostdashr: Simple Heart Rate Variability Analysis
+#' hrvester: Simple Heart Rate Variability Analysis
 #'
 #' @description
 #' Provides tools for analyzing Heart Rate Variability (HRV) from FIT files.

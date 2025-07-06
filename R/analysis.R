@@ -54,12 +54,15 @@ analyze_readiness <- function(current_metrics, baseline_metrics) {
   # Calculate current deviations
   deviations <- list(
     rmssd_dev = (current_metrics$laying_rmssd - baseline$rmssd) /
-      baseline$rmssd * 100,
+      baseline$rmssd *
+      100,
     hr_dev = (current_metrics$laying_resting_hr - baseline$resting_hr) /
-      baseline$resting_hr * 100,
+      baseline$resting_hr *
+      100,
     ortho_dev = (current_metrics$orthostatic_rise -
       baseline$standing_response) /
-      baseline$standing_response * 100
+      baseline$standing_response *
+      100
   )
 
   # Define training status based on BJJ-specific thresholds
@@ -75,34 +78,39 @@ analyze_readiness <- function(current_metrics, baseline_metrics) {
 
   # Generate BJJ-specific recommendations
   recommendations <- case_when(
-    status == "FRESH" ~ list(
-      bjj = "Full training, good day for hard rolls",
-      strength = "Proceed with planned session",
-      cardio = "Good day for higher intensity work"
-    ),
-    status == "NORMAL" ~ list(
-      bjj = "Regular training as planned",
-      strength = "Proceed as planned",
-      cardio = "Stay in Zone 1-2"
-    ),
-    status == "CAUTION" ~ list(
-      bjj = "Technical work only, limit sparring",
-      strength = "Reduce volume by 20%, maintain intensity",
-      cardio = "Zone 1 only, max 30 minutes"
-    ),
-    status == "WARNING" ~ list(
-      bjj = "Technique or drilling only, no sparring",
-      strength = "Active recovery or rest day",
-      cardio = "Light mobility work only"
-    )
+    status == "FRESH" ~
+      list(
+        bjj = "Full training, good day for hard rolls",
+        strength = "Proceed with planned session",
+        cardio = "Good day for higher intensity work"
+      ),
+    status == "NORMAL" ~
+      list(
+        bjj = "Regular training as planned",
+        strength = "Proceed as planned",
+        cardio = "Stay in Zone 1-2"
+      ),
+    status == "CAUTION" ~
+      list(
+        bjj = "Technical work only, limit sparring",
+        strength = "Reduce volume by 20%, maintain intensity",
+        cardio = "Zone 1 only, max 30 minutes"
+      ),
+    status == "WARNING" ~
+      list(
+        bjj = "Technique or drilling only, no sparring",
+        strength = "Active recovery or rest day",
+        cardio = "Light mobility work only"
+      )
   )
 
   # Additional BJJ-specific flags
   flags <- list(
     high_fatigue = deviations$hr_dev > 5 && deviations$rmssd_dev < -5,
     poor_recovery = deviations$ortho_dev > 15,
-    overreaching_risk = all(tail(baseline_metrics$laying_rmssd, 3) <
-      baseline$rmssd * 0.9)
+    overreaching_risk = all(
+      tail(baseline_metrics$laying_rmssd, 3) < baseline$rmssd * 0.9
+    )
   )
 
   return(list(
@@ -143,8 +151,10 @@ analyze_readiness <- function(current_metrics, baseline_metrics) {
 generate_daily_report <- function(data) {
   # Input validation
   if (nrow(data) < 8) {
-    stop("data must contain at least 8 consecutive days of measurements
-          (current day plus 7-day baseline)")
+    stop(
+      "data must contain at least 8 consecutive days of measurements
+          (current day plus 7-day baseline)"
+    )
   }
   # Get latest metrics
   current_day <- max(data$date)
@@ -284,13 +294,22 @@ calculate_trend_direction <- function(values) {
 #' @export
 calculate_neural_recovery <- function(data, window_size = 7) {
   # Input validation
-  if (!all(c("laying_rmssd", "laying_resting_hr", "standing_hr", "hrr_60s") %in% names(data))) {
-    stop("data must contain all required columns: laying_rmssd, laying_resting_hr, standing_hr, hrr_60s")
+  if (
+    !all(
+      c("laying_rmssd", "laying_resting_hr", "standing_hr", "hrr_60s") %in%
+        names(data)
+    )
+  ) {
+    stop(
+      "data must contain all required columns: laying_rmssd, laying_resting_hr, standing_hr, hrr_60s"
+    )
   }
 
-  if (!is.numeric(window_size) ||
-    window_size < 1 ||
-    window_size != round(window_size)) {
+  if (
+    !is.numeric(window_size) ||
+      window_size < 1 ||
+      window_size != round(window_size)
+  ) {
     stop("window_size must be a positive integer")
   }
 
@@ -303,9 +322,11 @@ calculate_neural_recovery <- function(data, window_size = 7) {
           "laying_resting_hr",
           "standing_hr"
         )
-      ] < 0,
+      ] <
+        0,
       na.rm = TRUE
-    )) {
+    )
+  ) {
     stop("All HRV metrics must be non-negative values")
   }
 
@@ -386,9 +407,11 @@ calculate_neural_recovery <- function(data, window_size = 7) {
 #' @export
 training_recommendations <- function(score, primary_type = "BJJ") {
   # Input validation
-  if (!is.numeric(score) ||
-    score < 0 ||
-    score > 100) {
+  if (
+    !is.numeric(score) ||
+      score < 0 ||
+      score > 100
+  ) {
     stop("score must be a numeric value between 0 and 100")
   }
   primary_type <- toupper(primary_type)
@@ -397,36 +420,41 @@ training_recommendations <- function(score, primary_type = "BJJ") {
   }
 
   base_rec <- case_when(
-    score >= 80 ~ list(
-      status = "Fresh",
-      intensity = "High",
-      volume = "Normal to High",
-      focus = "Progress training load"
-    ),
-    score >= 70 ~ list(
-      status = "Good",
-      intensity = "Normal to High",
-      volume = "Normal",
-      focus = "Maintain planned training"
-    ),
-    score >= 55 ~ list(
-      status = "Normal",
-      intensity = "Normal",
-      volume = "Normal to Reduced",
-      focus = "Maintain technical focus"
-    ),
-    score >= 40 ~ list(
-      status = "Reduced",
-      intensity = "Reduced",
-      volume = "Reduced",
-      focus = "Technical work priority"
-    ),
-    TRUE ~ list(
-      status = "Low",
-      intensity = "Low",
-      volume = "Minimum",
-      focus = "Active recovery"
-    )
+    score >= 80 ~
+      list(
+        status = "Fresh",
+        intensity = "High",
+        volume = "Normal to High",
+        focus = "Progress training load"
+      ),
+    score >= 70 ~
+      list(
+        status = "Good",
+        intensity = "Normal to High",
+        volume = "Normal",
+        focus = "Maintain planned training"
+      ),
+    score >= 55 ~
+      list(
+        status = "Normal",
+        intensity = "Normal",
+        volume = "Normal to Reduced",
+        focus = "Maintain technical focus"
+      ),
+    score >= 40 ~
+      list(
+        status = "Reduced",
+        intensity = "Reduced",
+        volume = "Reduced",
+        focus = "Technical work priority"
+      ),
+    TRUE ~
+      list(
+        status = "Low",
+        intensity = "Low",
+        volume = "Minimum",
+        focus = "Active recovery"
+      )
   )
 
   # BJJ-specific modifications

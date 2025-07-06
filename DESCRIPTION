@@ -1,8 +1,8 @@
 Package: hrvester
 Type: Package
-Title: Dashboard for orthostatic test data
-Version: 0.3.1.9000
-Date: 2024-11-11
+Title: hrvester: Heart Rate Variability Analysis from FIT Files
+Version: 0.4.0
+Date: 2025-02-10
 Authors@R:
     person("Maximilian", "Scholz", email = "dev.scholz@mailbox.org",
            role = c("aut", "cre"))
@@ -17,26 +17,32 @@ Imports:
     ggplot2,
     furrr,
     FITfileR,
-    progressr,
-    clock,
-    scales,
     grid,
     gridExtra,
     rlang,
-    readr
+    readr,
+    signal,
+    zoo,
+    methods
 Remotes:
     grimbough/FITfileR
 Suggests:
     testthat (>= 3.0.0),
-    knitr,
-    mockery
+    mockery,
+    purrr
 Config/testthat/edition: 3
-VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 NeedsCompilation: no
 URL: https://github.com/sims1253/hrvester, https://sims1253.github.io/hrvester/
 BugReports: https://github.com/sims1253/hrvester/issues
-Description: An (eventually) interactive dashboard application to analyze .fit
-    files of orthostatic tests.
+Description: An R package for analyzing Heart Rate Variability (HRV) data from .fit
+  files, with a focus on orthostatic tests. Features research-validated 
+  preprocessing with Kubios-style artifact detection, multiple correction methods
+  (linear interpolation, cubic spline, Lipponen-Tarvainen), and comprehensive
+  quality assessment following clinical HRV standards. Provides tools for RR 
+  interval preprocessing, calculation of key HRV metrics (RMSSD, SDNN, resting HR,
+  heart rate recovery), computation of a neural recovery score, and generation of
+  training recommendations. Includes features for handling multiple files, caching
+  results with quality metrics, and producing summary reports.
 Config/testthat/parallel: true

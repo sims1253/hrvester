@@ -21,10 +21,10 @@
 #' @return A patchwork object combining four ggplot2 plots
 #'
 #' @export
-#' @importFrom ggplot2 ggplot aes geom_line geom_ribbon geom_tile geom_smooth scale_color_manual scale_fill_manual labs theme_minimal theme_bw theme element_text scale_y_continuous geom_hline theme_void
-#' @importFrom dplyr mutate filter %>%
+#' @importFrom ggplot2 ggplot aes geom_line geom_ribbon geom_tile geom_smooth scale_color_manual scale_fill_manual labs theme_minimal theme_bw theme element_text scale_y_continuous geom_hline theme_void element_blank guides guide_legend ggplot_build ggplot_gtable
+#' @importFrom dplyr mutate filter %>% slice
 #' @importFrom stats loess
-#' @importFrom scales seq_gradient_pal
+#' @importFrom grid unit
 plot_hrv_dashboard <- function(data) {
   # Pre-process data
   data <- data %>%
@@ -98,7 +98,11 @@ plot_hrv_dashboard <- function(data) {
       name = "Measurement"
     ) +
     scale_fill_manual(
-      values = c("Optimal" = "#0072B2", "Normal" = "#009E73", "Caution" = "#D55E00"),
+      values = c(
+        "Optimal" = "#0072B2",
+        "Normal" = "#009E73",
+        "Caution" = "#D55E00"
+      ),
       name = "Recovery Zones",
       breaks = c("Optimal", "Normal", "Caution")
     ) +
@@ -130,7 +134,11 @@ plot_hrv_dashboard <- function(data) {
       values = c("Daily" = "#56B4E9", "7-day MA" = "#E69F00"),
       name = "Measurement"
     ) +
-    labs(title = "Heart Rate Recovery (60s)", y = "Recovery (bpm)", x = "Date") +
+    labs(
+      title = "Heart Rate Recovery (60s)",
+      y = "Recovery (bpm)",
+      x = "Date"
+    ) +
     base_theme
 
   # 4. Resting HR Plot
@@ -149,14 +157,18 @@ plot_hrv_dashboard <- function(data) {
     x = 1:3,
     y = 1:3,
     type = factor(c("Daily", "7-day MA", "Recovery Zones")),
-    fill_type = factor(c("Optimal", "Normal", "Caution"),
+    fill_type = factor(
+      c("Optimal", "Normal", "Caution"),
       levels = c("Optimal", "Normal", "Caution")
     )
   )
 
   legend_plot <- ggplot(legend_data) +
-    geom_tile(aes(x = x, y = y, fill = fill_type),
-      color = NA, width = 0.9, height = 0.9
+    geom_tile(
+      aes(x = x, y = y, fill = fill_type),
+      color = NA,
+      width = 0.9,
+      height = 0.9
     ) +
     geom_line(aes(x = x, y = y, color = type)) +
     scale_fill_manual(
@@ -218,13 +230,17 @@ plot_hrv_dashboard <- function(data) {
 
   # Create layout
   main_plots <- gridExtra::arrangeGrob(
-    p1, p2, p3, p4,
+    p1,
+    p2,
+    p3,
+    p4,
     nrow = 2,
     ncol = 2
   )
 
   # Create the title
-  title <- grid::textGrob("HRV Recovery Dashboard",
+  title <- grid::textGrob(
+    "HRV Recovery Dashboard",
     gp = grid::gpar(fontface = "bold", fontsize = 14)
   )
 
@@ -271,8 +287,13 @@ plot_hrv_dashboard <- function(data) {
 plot_weekly_heatmap <- function(data, method = "neural_recovery_score") {
   # Define weekday order (Monday to Sunday)
   weekday_order <- c(
-    "Montag", "Dienstag", "Mittwoch", "Donnerstag",
-    "Freitag", "Samstag", "Sonntag"
+    "Montag",
+    "Dienstag",
+    "Mittwoch",
+    "Donnerstag",
+    "Freitag",
+    "Samstag",
+    "Sonntag"
   )
 
   # Calculate daily status
@@ -289,7 +310,10 @@ plot_weekly_heatmap <- function(data, method = "neural_recovery_score") {
           rmssd_change >= -10 ~ "Caution",
           TRUE ~ "Warning"
         ),
-        status = factor(status, levels = c("Warning", "Caution", "Normal", "Fresh"))
+        status = factor(
+          status,
+          levels = c("Warning", "Caution", "Normal", "Fresh")
+        )
       )
   } else if (method == "neural_recovery_score") {
     data <- data %>%
