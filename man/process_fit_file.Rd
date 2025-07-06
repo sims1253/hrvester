@@ -4,16 +4,38 @@
 \alias{process_fit_file}
 \title{Process a single FIT file}
 \usage{
-process_fit_file(file_path, filter_factor)
+process_fit_file(
+  file_path,
+  standing_time = 180,
+  transition_time = 20,
+  laying_time = 180,
+  min_rr = 272,
+  max_rr = 2000,
+  window_size = 7,
+  threshold = 0.2
+)
 }
 \arguments{
 \item{file_path}{Path to FIT file}
 
-\item{filter_factor}{Numeric value for RR filtering}
+\item{standing_time}{Time in seconds to consider as standing}
+
+\item{transition_time}{Time in seconds to consider as transition}
+
+\item{laying_time}{Time in seconds to consider as laying}
+
+\item{min_rr}{Minimum RR interval in milliseconds}
+
+\item{max_rr}{Maximum RR interval in milliseconds}
+
+\item{window_size}{Window size for moving average calculation}
+
+\item{threshold}{Threshold for artifact detection}
 }
 \value{
 Tibble containing HRV metrics
 }
 \description{
-Calculates HRV metrics from a FIT file with error handling
+Calculates HRV metrics from a FIT file, integrating data extraction,
+RR interval processing, and HRV calculation with error handling.
 }

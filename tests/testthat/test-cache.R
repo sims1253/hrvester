@@ -11,7 +11,7 @@ test_that("cache_definition creates correct structure", {
     "laying_rmssd", "laying_sdnn", "laying_hr",
     "laying_resting_hr", "standing_rmssd", "standing_sdnn",
     "standing_hr", "standing_max_hr", "package_version",
-    "RR_filter", "activity"
+    "activity"
   )
 
   expect_true(all(expected_cols %in% colnames(cache)))

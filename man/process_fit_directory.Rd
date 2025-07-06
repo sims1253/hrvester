@@ -7,24 +7,41 @@
 process_fit_directory(
   dir_path,
   cache_file = file.path(dir_path, "hrv_cache.csv"),
-  filter_factor = 0.175,
+  standing_time = 180,
+  transition_time = 20,
+  laying_time = 180,
+  min_rr = 272,
+  max_rr = 2000,
+  window_size = 7,
+  threshold = 0.2,
   clear_cache = FALSE
 )
 }
 \arguments{
-\item{dir_path}{The directory path containing FIT files to process}
+\item{dir_path}{The directory path containing FIT files to process.}
 
-\item{cache_file}{Path to the cache file for storing processed data}
+\item{cache_file}{Path to the cache file for storing processed data. Defaults to "hrv_cache.csv" within the directory.}
 
-\item{filter_factor}{Numeric value (0-1) used to filter RR intervals}
+\item{standing_time}{Time in seconds to consider as standing. Default is 180 seconds.}
 
-\item{clear_cache}{Logical indicating whether to clear existing cache}
+\item{transition_time}{Time in seconds to consider as transition. Default is 20 seconds.}
+
+\item{laying_time}{Time in seconds to consider as laying. Default is 180 seconds.}
+
+\item{min_rr}{Minimum RR interval in milliseconds. Default is 272 ms.}
+
+\item{max_rr}{Maximum RR interval in milliseconds. Default is 2000 ms.}
+
+\item{window_size}{Window size for moving average calculation. Default is 7.}
+
+\item{threshold}{Threshold for artifact detection. Default is 0.2.}
+
+\item{clear_cache}{Logical indicating whether to clear existing cache. Default is FALSE.}
 }
 \value{
 A tibble containing HRV metrics for all processed FIT files
 }
 \description{
 Processes multiple FIT files from a specified directory, utilizing caching to
-avoid reprocessing unchanged files. This function is designed to be efficient
-by only processing new or updated files since the last run.
+avoid reprocessing unchanged files. This function efficiently processes new or updated files in a directory, leveraging a cache to skip already processed files.
 }
