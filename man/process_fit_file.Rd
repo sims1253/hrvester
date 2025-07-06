@@ -16,7 +16,9 @@ process_fit_file(
   centered_transition = TRUE,
   centered_window = FALSE,
   warmup = 70,
-  sport_name = "OST"
+  sport_name = "OST",
+  min_quality_threshold = 0,
+  correction_method = "linear"
 )
 }
 \arguments{
@@ -46,6 +48,12 @@ be centered. Defaults to FALSE.}
 \item{warmup}{Time in seconds from the start that should be discarded}
 
 \item{sport_name}{Name of the sport for the fit file. Used as a filter.}
+
+\item{min_quality_threshold}{Minimum quality threshold (0-1) for data to be processed.
+Data below this quality threshold will be discarded. Default is 0.0 (no filtering).}
+
+\item{correction_method}{Character string specifying the artifact correction
+method. Options are: "linear", "cubic", "lipponen", "none". Default is "linear".}
 }
 \value{
 Tibble containing HRV metrics

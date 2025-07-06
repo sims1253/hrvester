@@ -2,60 +2,86 @@
 % Please edit documentation in R/preprocessing.R
 \name{extract_rr_data}
 \alias{extract_rr_data}
-\title{Extract RR Interval Data from a FIT File Object}
+\title{Extract RR Interval Data from a FIT File Object with Artifact Correction}
 \usage{
-extract_rr_data(fit_object)
+extract_rr_data(
+  fit_object,
+  correction_method = "linear",
+  threshold_level = "medium",
+  hr_adaptive = TRUE,
+  ...
+)
 }
 \arguments{
 \item{fit_object}{A FIT file object, typically created by
 \code{\link[FITfileR:readFitFile]{FITfileR::readFitFile()}}. The object should be the result of
 reading a FIT file that is expected to contain HRV (RR interval) data.}
+
+\item{correction_method}{Character string specifying the artifact correction
+method. Options are: "linear", "cubic", "lipponen", "none". Default is "linear"}
+
+\item{threshold_level}{Character string specifying detection threshold level:
+"low", "medium", "strong". Default is "medium" (0.25s)}
+
+\item{hr_adaptive}{Logical indicating whether to use HR-adaptive thresholds.
+Default is TRUE}
+
+\item{...}{Additional arguments passed to correction functions}
 }
 \value{
-A data frame containing the RR data, obtained directly from
-\code{\link[FITfileR:FitFile-accessors]{FITfileR::hrv()}}. If no HRV data is found, the function
-returns an empty tibble with a \code{time} column (\code{tibble(time = numeric())}).
-Unlike previous versions, this version does not perform any filtering
-on the returned HRV data.
+A data frame containing the processed RR data with the following structure:
+\itemize{
+\item \code{time}: Numeric vector of RR intervals (corrected if method != "none")
+\item Additional columns may be present depending on correction method
+\item Attributes include correction metadata for diagnostic purposes
+}
 }
 \description{
-Extracts RR interval data (HRV data) from a FIT file object. This function
-is designed for situations where you expect the FIT file to contain HRV data.
-If no HRV data is found, it issues a warning and returns an empty tibble.
+Extracts and processes RR interval data (HRV data) from a FIT file object
+with integrated artifact detection and correction. This function combines
+data extraction with research-validated preprocessing methods.
 }
 \details{
-The function performs the following steps:
+The function implements a comprehensive preprocessing pipeline:
 \enumerate{
-\item \strong{Input Validation:} Validates the \code{fit_object} using
-\code{\link[=validate_fit_object]{validate_fit_object()}} (assumed to be defined elsewhere in the package).
-\item \strong{HRV Data Extraction:} Attempts to extract HRV data using
-\code{\link[FITfileR:FitFile-accessors]{FITfileR::hrv()}}.
-\item \strong{HRV Data Check:} Checks if the extracted HRV data is \code{NULL} or
-empty (has zero rows).
-\item \strong{Return Value:}
+\item \strong{Input Validation:} Validates the \code{fit_object} using \code{\link[=validate_fit_object]{validate_fit_object()}}
+\item \strong{HRV Data Extraction:} Extracts raw HRV data using \code{\link[FITfileR:FitFile-accessors]{FITfileR::hrv()}}
+\item \strong{Artifact Detection:} Applies Kubios-style adaptive threshold detection
+\item \strong{Artifact Correction:} Applies selected correction method if artifacts found
+\item \strong{Return Structured Output:} Returns corrected data with metadata
+}
+
+\strong{Correction Methods:}
 \itemize{
-\item If HRV data is found and is not empty, returns the data frame from
-\code{\link[FITfileR:FitFile-accessors]{FITfileR::hrv()}}.
-\item If HRV data is \code{NULL} or empty, issues a warning message
-("No HRV data found in FIT file") and returns an empty tibble.
+\item \code{"linear"}: Linear interpolation (lowest RMSSD bias, recommended default)
+\item \code{"cubic"}: Cubic spline interpolation (Kubios-style, good automation)
+\item \code{"lipponen"}: Lipponen-Tarvainen algorithm (state-of-the-art, <2\% error)
+\item \code{"none"}: No correction applied (returns raw extracted data)
 }
-}
+
+\strong{Artifact Detection:}
+Uses research-validated Kubios-style time-varying thresholds with dRR series
+analysis to differentiate ectopic beats from normal sinus rhythm. The medium
+threshold (0.25s) provides optimal balance for most populations.
 }
 \examples{
 \dontrun{
-# Assuming you have a FIT file named "activity.fit" that should
-# contain HRV data.
+# Basic usage with default linear correction
 fit_file <- FITfileR::readFitFile("activity.fit")
 rr_data <- extract_rr_data(fit_file)
 
-# If HRV data was present:
-# rr_data will be a data.frame (the result of FITfileR::hrv()).
+# Specify correction method
+rr_corrected <- extract_rr_data(fit_file, correction_method = "cubic")
 
-# If no HRV data was found:
-# rr_data will be tibble(time = numeric()).
+# No correction, just extraction
+rr_raw <- extract_rr_data(fit_file, correction_method = "none")
+
+# Advanced: custom threshold
+rr_strict <- extract_rr_data(fit_file, threshold_level = "strong")
 }
 
 }
 \seealso{
-\code{\link[FITfileR:FitFile-accessors]{FITfileR::hrv()}}, \code{\link[FITfileR:readFitFile]{FITfileR::readFitFile()}}
+\code{\link[=detect_artifacts_kubios]{detect_artifacts_kubios()}}, \code{\link[=correct_rr_linear]{correct_rr_linear()}},
+\code{\link[=correct_rr_cubic_spline]{correct_rr_cubic_spline()}}, \code{\link[=correct_rr_lipponen_tarvainen]{correct_rr_lipponen_tarvainen()}}
 }

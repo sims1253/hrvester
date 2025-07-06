@@ -29,8 +29,11 @@ get_HR <- function(fit_object) {
   HR <- FITfileR::records(fit_object)
 
   # Validate records exist
-  if (is.null(HR) || (is.data.frame(HR) && nrow(HR) == 0) ||
-    (is.list(HR) && length(HR) == 0)) {
+  if (
+    is.null(HR) ||
+      (is.data.frame(HR) && nrow(HR) == 0) ||
+      (is.list(HR) && length(HR) == 0)
+  ) {
     stop("No heart rate records found in FIT file")
   }
 
@@ -66,7 +69,8 @@ get_HR <- function(fit_object) {
   HR <- HR[1:min(360, length(HR))]
 
   # Ensure minimum data points
-  if (length(HR) < 30) { # At least 30 seconds of data
+  if (length(HR) < 30) {
+    # At least 30 seconds of data
     warning("Insufficient heart rate data points")
   }
 
@@ -163,7 +167,7 @@ extract_session_data <- function(fit_object) {
     stop("Invalid timestamp format in session data")
   }
 
-  date <- clock::as_date(session$timestamp)
+  date <- as.Date(session$timestamp)
   week <- as.numeric(strftime(session$timestamp, format = "%W"))
 
   # Validate date conversion
@@ -176,7 +180,7 @@ extract_session_data <- function(fit_object) {
     stop("Invalid week number calculated from timestamp")
   }
 
-  hour <- clock::get_hour(session$timestamp)
+  hour <- as.numeric(strftime(session$timestamp, format = "%H"))
   if (is.na(hour)) {
     stop("Failed to extract hour from timestamp")
   }
@@ -213,30 +217,77 @@ extract_session_data <- function(fit_object) {
 #' @param warmup Time in seconds from the start that should be discarded
 #' @return Tibble containing HRV metrics
 #' @param sport_name Name of the sport for the fit file. Used as a filter.
+#' @param min_quality_threshold Minimum quality threshold (0-1) for data to be processed.
+#'   Data below this quality threshold will be discarded. Default is 0.0 (no filtering).
+#' @param correction_method Character string specifying the artifact correction
+#'   method. Options are: "linear", "cubic", "lipponen", "none". Default is "linear".
 #' @export
 process_fit_file <- function(
-    file_path,
-    standing_time = 180,
-    transition_time = 20,
-    laying_time = 180,
-    min_rr = 272,
-    max_rr = 2000,
-    window_size = 7,
-    threshold = 0.2,
-    centered_transition = TRUE,
-    centered_window = FALSE,
-    warmup = 70,
-    sport_name = "OST") {
+  file_path,
+  standing_time = 180,
+  transition_time = 20,
+  laying_time = 180,
+  min_rr = 272,
+  max_rr = 2000,
+  window_size = 7,
+  threshold = 0.2,
+  centered_transition = TRUE,
+  centered_window = FALSE,
+  warmup = 70,
+  sport_name = "OST",
+  min_quality_threshold = 0.0,
+  correction_method = "linear"
+) {
+  # Validate min_quality_threshold parameter
+  if (
+    !is.numeric(min_quality_threshold) || length(min_quality_threshold) != 1
+  ) {
+    stop("min_quality_threshold must be numeric")
+  }
+
+  if (min_quality_threshold < 0 || min_quality_threshold > 1) {
+    stop("min_quality_threshold must be between 0 and 1")
+  }
+
+  # Validate correction_method parameter
+  valid_methods <- c("linear", "cubic", "lipponen", "none")
+  if (!is.character(correction_method) || length(correction_method) != 1) {
+    stop("correction_method must be a single character string")
+  }
+  if (!correction_method %in% valid_methods) {
+    stop(
+      "correction_method must be one of: ",
+      paste(valid_methods, collapse = ", ")
+    )
+  }
+
   fit_object <- read_fit_file(file_path = file_path)
   session <- extract_session_data(fit_object = fit_object)
 
-  if (FITfileR::getMessagesByType(fit_object, "sport")$name != sport_name) {
-    return(result <- create_empty_result(
-      file_path = file_path,
-      session_date = session$date,
-      week = session$week,
-      time_of_day = session$time_of_day
-    ))
+  # Check if sport message type exists and filter by sport name
+  sport_messages <- tryCatch(
+    {
+      FITfileR::getMessagesByType(fit_object, "sport")
+    },
+    error = function(e) {
+      # If sport message type doesn't exist, assume it's valid (skip sport filtering)
+      data.frame(name = sport_name)
+    }
+  )
+
+  if (
+    !is.null(sport_messages) &&
+      nrow(sport_messages) > 0 &&
+      sport_messages$name[1] != sport_name
+  ) {
+    return(
+      result <- create_empty_result(
+        file_path = file_path,
+        session_date = session$date,
+        week = session$week,
+        time_of_day = session$time_of_day
+      )
+    )
   }
 
   hr_data <- get_HR(fit_object)
@@ -249,9 +300,13 @@ process_fit_file <- function(
 
   hrr_metrics <- calculate_hrr(hr_data[181:240], resting_hr)
 
-  rr_intervals <- extract_rr_data(fit_object)
+  # Extract RR data with quality metrics using specified correction method
+  rr_intervals <- extract_rr_data(
+    fit_object,
+    correction_method = correction_method
+  )
 
-  rr_intervals$time <- rr_intervals$time * 1000
+  # Note: extract_rr_data now returns RR intervals in milliseconds (after unit conversion fix)
 
   rr_intervals <- split_rr_phases(
     rr_intervals,
@@ -271,50 +326,79 @@ process_fit_file <- function(
     centered_window = FALSE
   )
 
-  laying_hrv <- calculate_hrv(corrected_data$time)
-  laying_hrv
-
-  # Debugging leftover
-  rr_intervals %>%
-    filter(phase == "laying") %>%
-    ggplot(aes(x = elapsed_time, y = time, color = is_valid)) +
-    geom_point() +
-    ggtitle(calculate_hrv(laying_data$cleaned_rr)$rmssd) +
-    coord_cartesian(ylim = c(0, 1500))
+  laying_hrv <- calculate_hrv(laying_data$cleaned_rr)
 
   transition_data <- rr_full_phase_processing(
     rr_segment = dplyr::filter(rr_intervals, phase == "transition")$time,
-    is_valid = dplyr::filter(rr_intervals, phase == "transition")$is_valid,
     min_rr = min_rr,
     max_rr = max_rr,
     window_size = window_size,
     threshold = 0.17,
     centered_window = centered_window
   )
-  rr_intervals$is_valid[
-    min(which(rr_intervals$phase == "transition")):max(which(rr_intervals$phase == "transition"))
-  ] <- transition_data$is_valid
 
   transitioning_hrv <- calculate_hrv(transition_data$cleaned_rr)
 
   standing_data <- rr_full_phase_processing(
     rr_segment = dplyr::filter(rr_intervals, phase == "standing")$time,
-    is_valid = dplyr::filter(rr_intervals, phase == "standing")$is_valid,
     min_rr = min_rr,
     max_rr = max_rr,
     window_size = window_size,
     threshold = 0.2,
     centered_window = centered_window
   )
-  rr_intervals$is_valid[
-    min(which(rr_intervals$phase == "standing")):max(which(rr_intervals$phase == "standing"))
-  ] <- standing_data$is_valid
-  transitioning_hrv <- calculate_hrv(standing_data$cleaned_rr)
 
   standing_hrv <- calculate_hrv(standing_data$cleaned_rr)
 
-  # Process if we have enough data
-  if (length(laying_data$is_valid) >= 2 && length(standing_data$is_valid) >= 2) {
+  # Extract quality metrics from RR data
+  rr_quality_metrics <- attr(rr_intervals, "quality_metrics")
+
+  # Calculate phase-specific quality metrics for laying and standing phases
+  laying_rr <- dplyr::filter(rr_intervals, phase == "laying")$time
+  standing_rr <- dplyr::filter(rr_intervals, phase == "standing")$time
+
+  # Calculate quality metrics for laying phase
+  laying_artifacts <- which(!laying_data$is_valid)
+  laying_quality <- calculate_rr_quality(
+    rr_intervals = laying_rr,
+    artifacts_detected = laying_artifacts,
+    correction_metadata = list(threshold_used = 250, method = "linear")
+  )
+
+  # Calculate quality metrics for standing phase
+  standing_artifacts <- which(!standing_data$is_valid)
+  standing_quality <- calculate_rr_quality(
+    rr_intervals = standing_rr,
+    artifacts_detected = standing_artifacts,
+    correction_metadata = list(threshold_used = 250, method = "linear")
+  )
+
+  # Check quality thresholds - convert signal quality index to 0-1 scale for comparison
+  laying_quality_score <- laying_quality$signal_quality_index / 100
+  standing_quality_score <- standing_quality$signal_quality_index / 100
+
+  # Apply quality filtering - both phases must meet minimum threshold
+  if (
+    laying_quality_score < min_quality_threshold ||
+      standing_quality_score < min_quality_threshold
+  ) {
+    message(sprintf(
+      "File %s discarded due to low quality: laying=%.2f, standing=%.2f (threshold=%.2f)",
+      basename(file_path),
+      laying_quality_score,
+      standing_quality_score,
+      min_quality_threshold
+    ))
+    result <- create_empty_result(
+      file_path = file_path,
+      session_date = session$date,
+      week = session$week,
+      time_of_day = session$time_of_day
+    )
+  } else if (
+    length(laying_data$is_valid) >= 2 && length(standing_data$is_valid) >= 2
+  ) {
+    # Process if we have enough data and quality is acceptable
     result <- tibble::tibble(
       source_file = file_path,
       date = as.character(session$date),
@@ -332,7 +416,17 @@ process_fit_file <- function(
       hrr_relative = hrr_metrics$hrr_relative,
       orthostatic_rise = hrr_metrics$orthostatic_rise,
       package_version = as.character(utils::packageVersion("hrvester")),
-      activity = FITfileR::getMessagesByType(fit_object, "sport")$name
+      activity = FITfileR::getMessagesByType(fit_object, "sport")$name,
+      # Quality metrics for laying phase
+      laying_artifact_percentage = laying_quality$artifact_percentage,
+      laying_signal_quality_index = laying_quality$signal_quality_index,
+      laying_data_completeness = laying_quality$data_completeness,
+      laying_quality_grade = laying_quality$quality_grade,
+      # Quality metrics for standing phase
+      standing_artifact_percentage = standing_quality$artifact_percentage,
+      standing_signal_quality_index = standing_quality$signal_quality_index,
+      standing_data_completeness = standing_quality$data_completeness,
+      standing_quality_grade = standing_quality$quality_grade
     )
   } else {
     result <- create_empty_result(
@@ -374,7 +468,17 @@ create_empty_result <- function(file_path, session_date, week, time_of_day) {
     hrr_relative = NA_real_,
     orthostatic_rise = NA_real_,
     package_version = as.character(utils::packageVersion("hrvester")),
-    activity = NA_character_
+    activity = NA_character_,
+    # Quality metrics for laying phase
+    laying_artifact_percentage = NA_real_,
+    laying_signal_quality_index = NA_real_,
+    laying_data_completeness = NA_real_,
+    laying_quality_grade = NA_character_,
+    # Quality metrics for standing phase
+    standing_artifact_percentage = NA_real_,
+    standing_signal_quality_index = NA_real_,
+    standing_data_completeness = NA_real_,
+    standing_quality_grade = NA_character_
   )
 }
 
@@ -393,25 +497,60 @@ create_empty_result <- function(file_path, session_date, week, time_of_day) {
 #' @param max_rr Maximum RR interval in milliseconds. Default is 2000 ms.
 #' @param window_size Window size for moving average calculation. Default is 7.
 #' @param threshold Threshold for artifact detection. Default is 0.2.
+#' @param centered_transition Logical indicating whether to center transition phases. Default is TRUE.
+#' @param centered_window Logical indicating whether to use centered window for processing. Default is FALSE.
+#' @param warmup Warmup time in seconds to exclude from beginning. Default is 70.
 #' @param clear_cache Logical indicating whether to clear existing cache. Default is FALSE.
+#' @param sport_name Character string specifying the sport name filter. Default is "OST".
+#' @param min_quality_threshold Minimum quality threshold (0-1) for data to be processed.
+#'   Data below this quality threshold will be discarded. Default is 0.0 (no filtering).
+#' @param correction_method Character string specifying the artifact correction
+#'   method. Options are: "linear", "cubic", "lipponen", "none". Default is "linear".
 #'
 #' @return A tibble containing HRV metrics for all processed FIT files
+#' @importFrom dplyr desc
 #' @export
 process_fit_directory <- function(
-    dir_path,
-    cache_file = file.path(dir_path, "hrv_cache.csv"),
-    standing_time = 180,
-    transition_time = 20,
-    laying_time = 180,
-    min_rr = 272,
-    max_rr = 2000,
-    window_size = 7,
-    threshold = 0.2,
-    centered_transition = TRUE,
-    centered_window = FALSE,
-    warmup = 70,
-    clear_cache = FALSE,
-    sport_name = "OST") {
+  dir_path,
+  cache_file = file.path(dir_path, "hrv_cache.csv"),
+  standing_time = 180,
+  transition_time = 20,
+  laying_time = 180,
+  min_rr = 272,
+  max_rr = 2000,
+  window_size = 7,
+  threshold = 0.2,
+  centered_transition = TRUE,
+  centered_window = FALSE,
+  warmup = 70,
+  clear_cache = FALSE,
+  sport_name = "OST",
+  min_quality_threshold = 0.0,
+  correction_method = "linear"
+) {
+  # Validate min_quality_threshold parameter
+  if (
+    !is.numeric(min_quality_threshold) || length(min_quality_threshold) != 1
+  ) {
+    stop("min_quality_threshold must be numeric")
+  }
+
+  if (min_quality_threshold < 0 || min_quality_threshold > 1) {
+    stop("min_quality_threshold must be between 0 and 1")
+  }
+
+  # Validate correction_method parameter
+  valid_methods <- c("linear", "cubic", "lipponen", "none")
+  if (!is.character(correction_method) || length(correction_method) != 1) {
+    stop("correction_method must be a single character string")
+  }
+  if (!correction_method %in% valid_methods) {
+    stop(
+      "correction_method must be one of: ",
+      paste(valid_methods, collapse = ", ")
+    )
+  }
+
   # Validate inputs
   validate_inputs(dir_path, cache_file, clear_cache)
 
@@ -442,7 +581,6 @@ process_fit_directory <- function(
   if (length(files_to_process) > 0) {
     # Process files
     message(sprintf("Processing %d files...", length(files_to_process)))
-    p <- progressr::progressor(along = files_to_process)
 
     new_data <- furrr::future_map_dfr(
       files_to_process,
@@ -459,9 +597,10 @@ process_fit_directory <- function(
           centered_transition = centered_transition,
           centered_window = centered_window,
           warmup = warmup,
-          sport_name = sport_name
+          sport_name = sport_name,
+          min_quality_threshold = min_quality_threshold,
+          correction_method = correction_method
         )
-        p()
         return(result)
       },
       .options = furrr::furrr_options(seed = TRUE)

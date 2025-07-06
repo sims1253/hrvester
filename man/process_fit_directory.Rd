@@ -18,7 +18,9 @@ process_fit_directory(
   centered_window = FALSE,
   warmup = 70,
   clear_cache = FALSE,
-  sport_name = "OST"
+  sport_name = "OST",
+  min_quality_threshold = 0,
+  correction_method = "linear"
 )
 }
 \arguments{
@@ -40,7 +42,21 @@ process_fit_directory(
 
 \item{threshold}{Threshold for artifact detection. Default is 0.2.}
 
+\item{centered_transition}{Logical indicating whether to center transition phases. Default is TRUE.}
+
+\item{centered_window}{Logical indicating whether to use centered window for processing. Default is FALSE.}
+
+\item{warmup}{Warmup time in seconds to exclude from beginning. Default is 70.}
+
 \item{clear_cache}{Logical indicating whether to clear existing cache. Default is FALSE.}
+
+\item{sport_name}{Character string specifying the sport name filter. Default is "OST".}
+
+\item{min_quality_threshold}{Minimum quality threshold (0-1) for data to be processed.
+Data below this quality threshold will be discarded. Default is 0.0 (no filtering).}
+
+\item{correction_method}{Character string specifying the artifact correction
+method. Options are: "linear", "cubic", "lipponen", "none". Default is "linear".}
 }
 \value{
 A tibble containing HRV metrics for all processed FIT files
