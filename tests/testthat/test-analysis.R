@@ -14,7 +14,10 @@ test_that("analyze_readiness returns correct status", {
   )
 
   # Check status
-  expect_equal(analyze_readiness(current_metrics, baseline_metrics)$status, "FRESH")
+  expect_equal(
+    analyze_readiness(current_metrics, baseline_metrics)$status,
+    "FRESH"
+  )
 
   # Create sample baseline metrics
   baseline_metrics <- data.frame(
@@ -24,7 +27,10 @@ test_that("analyze_readiness returns correct status", {
   )
 
   # Check status
-  expect_equal(analyze_readiness(current_metrics, baseline_metrics)$status, "NORMAL")
+  expect_equal(
+    analyze_readiness(current_metrics, baseline_metrics)$status,
+    "NORMAL"
+  )
 
   # Create sample baseline metrics
   baseline_metrics <- data.frame(
@@ -34,7 +40,10 @@ test_that("analyze_readiness returns correct status", {
   )
 
   # Check status
-  expect_equal(analyze_readiness(current_metrics, baseline_metrics)$status, "CAUTION")
+  expect_equal(
+    analyze_readiness(current_metrics, baseline_metrics)$status,
+    "CAUTION"
+  )
 
   # Create sample baseline metrics
   baseline_metrics <- data.frame(
@@ -44,7 +53,10 @@ test_that("analyze_readiness returns correct status", {
   )
 
   # Check status
-  expect_equal(analyze_readiness(current_metrics, baseline_metrics)$status, "WARNING")
+  expect_equal(
+    analyze_readiness(current_metrics, baseline_metrics)$status,
+    "WARNING"
+  )
 })
 
 test_that("analyze_readiness handles edge cases", {
@@ -100,21 +112,32 @@ test_that("calculate_neural_recovery produces expected scores", {
   result <- calculate_neural_recovery(test_data)
 
   # Test output structure
-  expect_true(all(c(
-    "rmssd_score", "ortho_score", "hrr_score",
-    "neural_recovery_score", "recovery_status"
-  ) %in% names(result)))
+  expect_true(all(
+    c(
+      "rmssd_score",
+      "ortho_score",
+      "hrr_score",
+      "neural_recovery_score",
+      "recovery_status"
+    ) %in%
+      names(result)
+  ))
 
   # Test most recent day's scores are within expected ranges
   recent_result <- result[nrow(result), ]
   expect_true(recent_result$rmssd_score >= 0 && recent_result$rmssd_score <= 40)
   expect_true(recent_result$ortho_score >= 0 && recent_result$ortho_score <= 30)
   expect_true(recent_result$hrr_score >= 0 && recent_result$hrr_score <= 30)
-  expect_true(recent_result$neural_recovery_score >= 0 && recent_result$neural_recovery_score <= 100)
+  expect_true(
+    recent_result$neural_recovery_score >= 0 &&
+      recent_result$neural_recovery_score <= 100
+  )
 
   # Test recovery status classification
-  expect_true(recent_result$recovery_status %in%
-    c("Fresh", "Good", "Normal", "Reduced", "Low"))
+  expect_true(
+    recent_result$recovery_status %in%
+      c("Fresh", "Good", "Normal", "Reduced", "Low")
+  )
 })
 
 test_that("calculate_neural_recovery handles edge cases", {

@@ -74,9 +74,10 @@ calculate_robust_ma <- function(x, window = 7, min_fraction = 0.7) {
 #' @export
 #' @importFrom rlang .data
 calculate_moving_averages <- function(
-    data,
-    window_size = 7,
-    min_fraction = 0.7) {
+  data,
+  window_size = 7,
+  min_fraction = 0.7
+) {
   if (!is.data.frame(data)) {
     stop("Input must be a data frame")
   }
@@ -107,8 +108,12 @@ calculate_moving_averages <- function(
         window_size,
         min_fraction
       ),
-      rmssd_change = (.data$laying_rmssd - .data$rmssd_ma) / .data$rmssd_ma * 100,
-      hr_change = (.data$laying_resting_hr - .data$resting_hr_ma) / .data$resting_hr_ma * 100
+      rmssd_change = (.data$laying_rmssd - .data$rmssd_ma) /
+        .data$rmssd_ma *
+        100,
+      hr_change = (.data$laying_resting_hr - .data$resting_hr_ma) /
+        .data$resting_hr_ma *
+        100
     )
 }
 
@@ -124,10 +129,11 @@ calculate_moving_averages <- function(
 #' @return Numeric resting heart rate value
 #' @export
 calculate_resting_hr <- function(
-    hr_data,
-    method = "lowest_sustained",
-    stability_threshold = 3,
-    window_size = 30) {
+  hr_data,
+  method = "lowest_sustained",
+  stability_threshold = 3,
+  window_size = 30
+) {
   if (is.null(hr_data) || length(hr_data) < window_size) {
     return(NA_real_)
   }
@@ -179,7 +185,9 @@ calculate_resting_hr <- function(
     return(calculate_resting_hr(hr_data, method = "min_30s"))
   }
 
-  stop("Invalid method specified. Use 'last_30s', 'min_30s', or 'lowest_sustained'")
+  stop(
+    "Invalid method specified. Use 'last_30s', 'min_30s', or 'lowest_sustained'"
+  )
 }
 
 #' Calculate Heart Rate Recovery metrics

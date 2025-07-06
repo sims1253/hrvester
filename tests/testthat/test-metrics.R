@@ -58,7 +58,11 @@ test_that("calculate_robust_ma works correctly", {
 test_that("calculate_moving_averages processes data correctly", {
   # Create test data
   test_data <- data.frame(
-    date = as.character(seq.Date(from = Sys.Date(), by = "day", length.out = 10)),
+    date = as.character(seq.Date(
+      from = Sys.Date(),
+      by = "day",
+      length.out = 10
+    )),
     laying_rmssd = rnorm(10, mean = 50, sd = 5),
     laying_resting_hr = rnorm(10, mean = 60, sd = 3),
     standing_hr = rnorm(10, mean = 80, sd = 5)
@@ -67,10 +71,16 @@ test_that("calculate_moving_averages processes data correctly", {
   result <- calculate_moving_averages(test_data, window_size = 3)
 
   # Check structure
-  expect_true(all(c(
-    "rmssd_ma", "resting_hr_ma", "standing_hr_ma",
-    "rmssd_change", "hr_change"
-  ) %in% names(result)))
+  expect_true(all(
+    c(
+      "rmssd_ma",
+      "resting_hr_ma",
+      "standing_hr_ma",
+      "rmssd_change",
+      "hr_change"
+    ) %in%
+      names(result)
+  ))
 
   # Check calculations
   expect_equal(nrow(result), nrow(test_data))

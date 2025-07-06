@@ -19,6 +19,14 @@
 #'     \item standing_max_hr (numeric): Maximum heart rate during standing
 #'     \item package_version (character): Version of the package
 #'     \item activity (character): Type of activity
+#'     \item laying_artifact_percentage (numeric): Artifact percentage in laying phase
+#'     \item laying_signal_quality_index (numeric): Signal quality index for laying phase
+#'     \item laying_data_completeness (numeric): Data completeness for laying phase
+#'     \item laying_quality_grade (character): Quality grade for laying phase (A/B/C/D/F)
+#'     \item standing_artifact_percentage (numeric): Artifact percentage in standing phase
+#'     \item standing_signal_quality_index (numeric): Signal quality index for standing phase
+#'     \item standing_data_completeness (numeric): Data completeness for standing phase
+#'     \item standing_quality_grade (character): Quality grade for standing phase (A/B/C/D/F)
 #'   }
 #' @export
 cache_definition <- function() {
@@ -39,7 +47,17 @@ cache_definition <- function() {
     activity = character(),
     hrr_60s = numeric(),
     hrr_relative = numeric(),
-    orthostatic_rise = numeric()
+    orthostatic_rise = numeric(),
+    # Quality metrics for laying phase
+    laying_artifact_percentage = numeric(),
+    laying_signal_quality_index = numeric(),
+    laying_data_completeness = numeric(),
+    laying_quality_grade = character(),
+    # Quality metrics for standing phase
+    standing_artifact_percentage = numeric(),
+    standing_signal_quality_index = numeric(),
+    standing_data_completeness = numeric(),
+    standing_quality_grade = character()
   )
 }
 
@@ -71,7 +89,8 @@ validate_cache_structure <- function(cache_data) {
     if (expected_type == "character" && !is.character(cache_data[[col]])) {
       stop(sprintf(
         "Invalid column type for %s: expected character, got %s",
-        col, actual_type[1]
+        col,
+        actual_type[1]
       ))
     }
 
@@ -79,7 +98,8 @@ validate_cache_structure <- function(cache_data) {
     if (expected_type == "numeric" && !is.numeric(cache_data[[col]])) {
       stop(sprintf(
         "Invalid column type for %s: expected numeric, got %s",
-        col, actual_type[1]
+        col,
+        actual_type[1]
       ))
     }
   }
@@ -157,7 +177,8 @@ load_cache <- function(cache_file) {
 
       # Explicitly set column types based on template
       for (col_name in names(template)) {
-        col_types[[col_name]] <- switch(class(template[[col_name]]),
+        col_types[[col_name]] <- switch(
+          class(template[[col_name]]),
           "character" = readr::col_character(),
           "numeric" = readr::col_double(),
           readr::col_guess()
@@ -165,7 +186,8 @@ load_cache <- function(cache_file) {
       }
 
       # First check if file is valid CSV
-      if (length(readLines(cache_file)) < 2) { # Need at least header + one row
+      if (length(readLines(cache_file)) < 2) {
+        # Need at least header + one row
         warning("Invalid cache file structure, creating new cache")
         return(cache_definition())
       }
@@ -190,7 +212,10 @@ load_cache <- function(cache_file) {
       data
     },
     error = function(e) {
-      warning(sprintf("Invalid cache file, creating new cache: %s", conditionMessage(e)))
+      warning(sprintf(
+        "Invalid cache file, creating new cache: %s",
+        conditionMessage(e)
+      ))
       cache_definition()
     }
   )
