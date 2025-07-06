@@ -23,7 +23,9 @@ Imports:
     grid,
     gridExtra,
     rlang,
-    readr
+    readr,
+    signal,
+    zoo
 Remotes:
     grimbough/FITfileR
 Suggests:

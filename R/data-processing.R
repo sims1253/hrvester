@@ -325,39 +325,26 @@ process_fit_file <- function(
     standing_time = standing_time,
     centered_transition = centered_transition
   )
-  rr_intervals$is_valid <- TRUE
-  end_of_warmup_index <- nrow(dplyr::filter(rr_intervals, elapsed_time <= warmup))
-  # TODO this could probably be done smarter with changepoint analysis of the
-  # sdnn or something similar
-  rr_intervals$is_valid[1:end_of_warmup_index] <- FALSE
 
   laying_data <- rr_full_phase_processing(
     rr_segment = dplyr::filter(rr_intervals, phase == "laying")$time,
-    is_valid = dplyr::filter(rr_intervals, phase == "laying")$is_valid,
     min_rr = min_rr,
     max_rr = max_rr,
-    window_size = window_size,
-    threshold = 0.17,
-    centered_window = centered_window
+    window_size = 5,
+    threshold = 0.2,
+    centered_window = FALSE
   )
-  rr_intervals$is_valid[
-    1:(which.min(rr_intervals$phase == "laying") - 1)
-  ] <- laying_data$is_valid
 
-  laying_hrv <- calculate_hrv(dplyr::filter(
-    rr_intervals,
-    phase == "laying",
-    is_valid,
-    elapsed_time > warmup
-  )$time)
+  laying_hrv <- calculate_hrv(corrected_data$time)
+  laying_hrv
 
   # Debugging leftover
-  # rr_intervals %>%
-  #   filter(phase == "laying") %>%
-  #   ggplot(aes(x = elapsed_time, y = time, color = is_valid)) +
-  #   geom_point() +
-  #   ggtitle(calculate_hrv(laying_data$cleaned_rr)$rmssd) +
-  #   coord_cartesian(ylim = c(0, 1500))
+  rr_intervals %>%
+    filter(phase == "laying") %>%
+    ggplot(aes(x = elapsed_time, y = time, color = is_valid)) +
+    geom_point() +
+    ggtitle(calculate_hrv(laying_data$cleaned_rr)$rmssd) +
+    coord_cartesian(ylim = c(0, 1500))
 
   transition_data <- rr_full_phase_processing(
     rr_segment = dplyr::filter(rr_intervals, phase == "transition")$time,

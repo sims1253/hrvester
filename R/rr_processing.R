@@ -167,35 +167,12 @@ validate_rr <- function(rr_segment) {
   }
 }
 
-#' Validate Validity Vector
-#'
-#' This function validates a logical vector indicating the validity of RR
-#' intervals, ensuring it has the correct type, length, and contains no NA
-#' values.
-#'
-#' @param is_valid A logical vector indicating the validity of each RR interval.
-#' @param rr_segment A numeric vector of RR intervals (in milliseconds).
-#'
-#' @keywords internal
-validate_validity <- function(is_valid, rr_segment) {
-  if (!is.logical(is_valid)) {
-    stop("`is_valid` must be a logical vector.")
-  }
-  if (length(is_valid) != length(rr_segment)) {
-    stop("`is_valid` must have the same length as `rr_segment`.")
-  }
-  if (any(is.na(is_valid))) {
-    stop("`is_valid` cannot contain NA values.")
-  }
-}
-
 #' RR validation that flags intervals of 65.535 as invalid
 #'
 #' When taking the raw RR output from a Garmin watch, most of the entries are 65.535, which is
 #' just an empty measurement, as no new heartbeat has been detected yet.
 #'
 #' @param rr_segment A numeric vector of RR intervals (in milliseconds).
-#' @param is_valid A logical vector indicating the validity of each RR interval. Defaults to TRUE.
 #'
 #' @return A list containing two elements:
 #'   \item{is_valid}{A logical vector of the same length as `rr_segment`, where
@@ -207,12 +184,10 @@ validate_validity <- function(is_valid, rr_segment) {
 rr_validate_measure_artifacts <- function(
     rr_segment,
     is_valid = rep(TRUE, length(rr_segment))) {
+
   validate_rr(rr_segment)
-  validate_validity(is_valid, rr_segment)
 
-  is_valid <- is_valid & rr_segment != 65.535 & rr_segment != 65535
-
-  return(list(is_valid = is_valid, cleaned_rr = rr_segment[is_valid]))
+  return(rr_segment[rr_segment != 65.535 & rr_segment != 65535])
 }
 
 #' Validate RR Intervals Based on Physiological Limits
@@ -222,8 +197,6 @@ rr_validate_measure_artifacts <- function(
 #' are marked as invalid.
 #'
 #' @param rr_segment A numeric vector of RR intervals (in milliseconds).
-#' @param is_valid A logical vector indicating the *a priori* validity of each
-#'   RR interval.  Defaults to `TRUE` for all intervals.
 #' @param min_rr The minimum acceptable RR interval (in milliseconds).
 #'   Defaults to 272 ms (corresponding to a maximum heart rate of ~220 bpm).
 #' @param max_rr The maximum acceptable RR interval (in milliseconds).
@@ -258,12 +231,10 @@ rr_validate_measure_artifacts <- function(
 #' @export
 rr_validate_physiological <- function(
     rr_segment,
-    is_valid = rep(TRUE, length(rr_segment)),
     min_rr = 272,
     max_rr = 2000) {
   # Input Validation
   validate_rr(rr_segment)
-  validate_validity(is_valid, rr_segment)
 
   if (!is.numeric(min_rr) ||
     length(min_rr) != 1 ||
@@ -283,9 +254,9 @@ rr_validate_physiological <- function(
     stop("`max_rr` must be greater than `min_rr`.")
   }
 
-  is_valid[rr_segment < min_rr | rr_segment > max_rr] <- FALSE
+  is_valid[] <- FALSE
 
-  return(list(is_valid = is_valid, cleaned_rr = rr_segment[is_valid]))
+  return(rr_segment[rr_segment > min_rr & rr_segment < max_rr])
 }
 
 #' Moving Average RR Interval Validation
@@ -294,8 +265,6 @@ rr_validate_physiological <- function(
 #' erroneous intervals.
 #'
 #' @param rr_segment A numeric vector of RR intervals (in milliseconds).
-#' @param is_valid A logical vector indicating the *a priori* validity of each
-#'   RR interval. Defaults to `TRUE` for all intervals.
 #' @param window_size An integer specifying the size of the moving window (must
 #'   be odd). Defaults to 7.
 #' @param threshold A numeric value representing the maximum allowed
@@ -303,10 +272,7 @@ rr_validate_physiological <- function(
 #' @param centered A logical value indicating whether the moving window should be centered. Defaults to FALSE.
 #'
 #' @return A list containing two elements:
-#'   \item{is_valid}{A logical vector of the same length as `rr_segment`, where
-#'     `TRUE` indicates a valid RR interval and `FALSE` indicates an invalid
-#'     interval, *after* applying the moving average filter.}
-#'   \item{cleaned_rr}{A numeric vector containing only the valid RR intervals.}
+#'   \item{rr_segment}{A numeric vector containing only the valid RR intervals.}
 #'
 #' @details
 #'    **Moving Average Filter:** A moving median is calculated for each RR
@@ -348,24 +314,23 @@ rr_validate_physiological <- function(
 #' @export
 moving_average_rr_validation <- function(
     rr_segment,
-    is_valid = rep(TRUE, length(rr_segment)),
     window_size = 7,
     threshold = 0.2,
     centered_window = FALSE) {
   # Input Validation Checks
   validate_rr(rr_segment)
   if (length(rr_segment) == 0) {
-    return(list(is_valid = is_valid, cleaned_rr = rr_segment))
+    return(numeric())
   }
-  validate_validity(is_valid, rr_segment)
 
+  is_valid = rep(TRUE, length(rr_segment))
   # window_size checks
   if (!is.numeric(window_size) ||
     length(window_size) != 1 ||
     !is.finite(window_size) ||
     as.integer(window_size) != window_size ||
     window_size <= 0 ||
-    window_size %% 2 == 0) {
+    (centered_window && window_size %% 2 == 0)) {
     stop("`window_size` must be a single, finite, positive, odd integer.")
   }
 
@@ -402,9 +367,11 @@ moving_average_rr_validation <- function(
       upper_bound <- min(n, i)
     }
 
-    # Extend window to include enough valid data points
+    # Extend window to include enough valid data points, in case we removed some
     # minus one for the i-th item we won't use to compute the reference value
     valid_count <- sum(is_valid[lower_bound:upper_bound]) - 1
+    if (valid_count ==  0) next
+
     lower_bound_extended <- lower_bound
     upper_bound_extended <- upper_bound
     while (valid_count < current_window_size &&
@@ -442,7 +409,7 @@ moving_average_rr_validation <- function(
       }
     }
   }
-  return(list(is_valid = is_valid, cleaned_rr = rr_segment[is_valid]))
+  return(rr_segment[is_valid])
 }
 
 #' Full RR Interval Processing Pipeline
@@ -514,7 +481,6 @@ moving_average_rr_validation <- function(
 #' @export
 rr_full_phase_processing <- function(
     rr_segment,
-    is_valid = rep(TRUE, length(rr_segment)),
     min_rr = 272,
     max_rr = 2000,
     window_size = 7,
@@ -522,28 +488,24 @@ rr_full_phase_processing <- function(
     centered_window = FALSE) {
   validate_rr(rr_segment)
 
-  running_result <- rr_validate_measure_artifacts(
-    rr_segment = rr_segment,
-    is_valid = is_valid
-  )
+  rr_segment <- rr_validate_measure_artifacts(rr_segment = rr_segment)
 
-  running_result <- rr_validate_physiological(
+  rr_segment <- rr_validate_physiological(
     rr_segment = rr_segment,
-    is_valid = running_result$is_valid,
     min_rr = min_rr,
     max_rr = max_rr
   )
 
-  running_result <- moving_average_rr_validation(
+  #classified_data = classify_hrv_artefacts_lipponen(tibble(time = rr_segment))
+
+  #corrected_data = correct_hrv_artefacts_lipponen(classified_data)
+
+  rr_segment <- moving_average_rr_validation(
     rr_segment = rr_segment,
-    is_valid = running_result$is_valid,
     window_size = window_size,
     threshold = threshold,
-    centered_window = centered_window
+    centered_window = FALSE
   )
 
-  return(return(list(
-    is_valid = running_result$is_valid,
-    cleaned_rr = rr_segment[running_result$is_valid]
-  )))
+  return(rr_segment)
 }
