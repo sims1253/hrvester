@@ -23,6 +23,14 @@ A tibble with columns:
 \item standing_max_hr (numeric): Maximum heart rate during standing
 \item package_version (character): Version of the package
 \item activity (character): Type of activity
+\item laying_artifact_percentage (numeric): Artifact percentage in laying phase
+\item laying_signal_quality_index (numeric): Signal quality index for laying phase
+\item laying_data_completeness (numeric): Data completeness for laying phase
+\item laying_quality_grade (character): Quality grade for laying phase (A/B/C/D/F)
+\item standing_artifact_percentage (numeric): Artifact percentage in standing phase
+\item standing_signal_quality_index (numeric): Signal quality index for standing phase
+\item standing_data_completeness (numeric): Data completeness for standing phase
+\item standing_quality_grade (character): Quality grade for standing phase (A/B/C/D/F)
 }
 }
 \description{

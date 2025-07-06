@@ -15,8 +15,7 @@ moving_average_rr_validation(
 \arguments{
 \item{rr_segment}{A numeric vector of RR intervals (in milliseconds).}
 
-\item{is_valid}{A logical vector indicating the \emph{a priori} validity of each
-RR interval. Defaults to \code{TRUE} for all intervals.}
+\item{is_valid}{A logical vector indicating which intervals are valid initially. Defaults to all TRUE.}
 
 \item{window_size}{An integer specifying the size of the moving window (must
 be odd). Defaults to 7.}
@@ -24,14 +23,11 @@ be odd). Defaults to 7.}
 \item{threshold}{A numeric value representing the maximum allowed
 proportional deviation from the moving median. Defaults to 0.2 (20\%).}
 
-\item{centered}{A logical value indicating whether the moving window should be centered. Defaults to FALSE.}
+\item{centered_window}{A logical value indicating whether the moving window should be centered. Defaults to FALSE.}
 }
 \value{
 A list containing two elements:
-\item{is_valid}{A logical vector of the same length as \code{rr_segment}, where
-\code{TRUE} indicates a valid RR interval and \code{FALSE} indicates an invalid
-interval, \emph{after} applying the moving average filter.}
-\item{cleaned_rr}{A numeric vector containing only the valid RR intervals.}
+\item{rr_segment}{A numeric vector containing only the valid RR intervals.}
 }
 \description{
 Validates RR intervals using a moving average filter, flagging potentially

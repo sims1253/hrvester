@@ -14,8 +14,7 @@ rr_validate_physiological(
 \arguments{
 \item{rr_segment}{A numeric vector of RR intervals (in milliseconds).}
 
-\item{is_valid}{A logical vector indicating the \emph{a priori} validity of each
-RR interval.  Defaults to \code{TRUE} for all intervals.}
+\item{is_valid}{A logical vector indicating which intervals are valid initially. Defaults to all TRUE.}
 
 \item{min_rr}{The minimum acceptable RR interval (in milliseconds).
 Defaults to 272 ms (corresponding to a maximum heart rate of ~220 bpm).}

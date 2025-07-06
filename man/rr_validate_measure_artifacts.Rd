@@ -12,7 +12,7 @@ rr_validate_measure_artifacts(
 \arguments{
 \item{rr_segment}{A numeric vector of RR intervals (in milliseconds).}
 
-\item{is_valid}{A logical vector indicating the validity of each RR interval. Defaults to TRUE.}
+\item{is_valid}{A logical vector indicating which intervals are valid initially. Defaults to all TRUE.}
 }
 \value{
 A list containing two elements:

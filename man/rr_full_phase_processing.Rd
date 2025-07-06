@@ -6,7 +6,6 @@
 \usage{
 rr_full_phase_processing(
   rr_segment,
-  is_valid = rep(TRUE, length(rr_segment)),
   min_rr = 272,
   max_rr = 2000,
   window_size = 7,
@@ -29,6 +28,9 @@ Defaults to 2000 ms (corresponding to a minimum heart rate of 30 bpm).}
 \item{threshold}{A numeric value representing the maximum allowed
 proportional deviation from the moving median in the moving average
 validation. Defaults to 0.2 (20\%).}
+
+\item{centered_window}{A logical value indicating whether to use centered
+window for moving average validation. Defaults to FALSE.}
 }
 \value{
 A list containing two elements:

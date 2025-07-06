@@ -7,13 +7,12 @@
 validate_validity(is_valid, rr_segment)
 }
 \arguments{
-\item{is_valid}{A logical vector indicating the validity of each RR interval.}
+\item{is_valid}{A logical vector indicating validity of RR intervals.}
 
-\item{rr_segment}{A numeric vector of RR intervals (in milliseconds).}
+\item{rr_segment}{A numeric vector of RR intervals (for length checking).}
 }
 \description{
-This function validates a logical vector indicating the validity of RR
-intervals, ensuring it has the correct type, length, and contains no NA
-values.
+This function validates the validity vector used in RR interval processing,
+ensuring it is a logical vector of the correct length and contains no NA values.
 }
 \keyword{internal}
