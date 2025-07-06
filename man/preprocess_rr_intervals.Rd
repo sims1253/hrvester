@@ -63,7 +63,7 @@ preprocessing in the HRV analysis pipeline.
 \dontrun{
 rr_data <- c(800, 850, 200, 900, 2500, 820, 890, 870)
 result <- preprocess_rr_intervals(rr_data)
-print(paste("Removed", result$n_removed_physiological + result$n_removed_artifacts, 
+print(paste("Removed", result$n_removed_physiological + result$n_removed_artifacts,
             "of", result$n_original, "intervals"))
 clean_data <- result$cleaned_rr
 }

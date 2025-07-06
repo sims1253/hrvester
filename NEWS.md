@@ -2,21 +2,21 @@
 
 ## Quality Assessment System
 
-* **Quality grades** (A/B/C/D/F) for each measurement phase based on clinical HRV standards
-* **Signal quality index** (0-100) calculated from artifact levels and data completeness
-* **Automatic quality filtering** via `min_quality_threshold` parameter in `process_fit_file()` and `process_fit_directory()`
-* **Research-grade thresholds** aligned with peer-reviewed HRV literature
+* Quality grades (A/B/C/D/F) for each measurement phase based on clinical HRV standards
+* Signal quality index (0-100) calculated from artifact levels and data completeness
+* Automatic quality filtering via `min_quality_threshold` parameter in `process_fit_file()` and `process_fit_directory()`
+* Thresholds aligned with HRV literature
 
 ## Enhanced Data Processing
 
-* All processing functions now include comprehensive quality metrics in output
-* Quality metrics stored in cache for efficient re-processing
-* Improved error handling and validation throughout preprocessing pipeline
+* Processing functions include quality metrics in output
+* Quality metrics stored in cache for re-processing
+* Improved error handling and validation in preprocessing pipeline
 
 ## New Functions
 
 * Enhanced `process_fit_file()` and `process_fit_directory()` with quality filtering
-* Quality assessment integrated into existing preprocessing functions
+* Quality assessment integrated into preprocessing functions
 
 ## Bug Fixes
 

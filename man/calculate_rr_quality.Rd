@@ -57,7 +57,7 @@ quality <- calculate_rr_quality(clean_rr, integer(0), list(threshold_used = 250)
 # Data with artifacts
 rr_with_artifacts <- clean_rr
 rr_with_artifacts[c(50, 100, 200)] <- c(400, 1600, 350)
-quality_artifacts <- calculate_rr_quality(rr_with_artifacts, c(50, 100, 200), 
+quality_artifacts <- calculate_rr_quality(rr_with_artifacts, c(50, 100, 200),
                                          list(threshold_used = 250))
 }
 
