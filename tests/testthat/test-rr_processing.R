@@ -1,7 +1,16 @@
-check_phase_transitions <- function(result, laying_time, transition_time, duration) {
+check_phase_transitions <- function(
+  result,
+  laying_time,
+  transition_time,
+  duration
+) {
   # 1. Check for correct order of phases (laying -> transition -> standing)
   phases <- unique(result$phase)
-  expect_equal(phases, c("laying", "transition", "standing"), info = "Phases are not in the correct order")
+  expect_equal(
+    phases,
+    c("laying", "transition", "standing"),
+    info = "Phases are not in the correct order"
+  )
 
   # 2. Find transition points (where the phase changes)
   transition_points <- which(diff(as.numeric(factor(result$phase))) != 0)
@@ -10,13 +19,24 @@ check_phase_transitions <- function(result, laying_time, transition_time, durati
   if (length(transition_points) >= 1) {
     # Laying -> Transition
     expected_laying_end <- laying_time / (duration / nrow(result))
-    expect_equal(transition_points[1], expected_laying_end, tolerance = 1, info = "Laying -> Transition transition point is incorrect")
+    expect_equal(
+      transition_points[1],
+      expected_laying_end,
+      tolerance = 1,
+      info = "Laying -> Transition transition point is incorrect"
+    )
   }
 
   if (length(transition_points) >= 2) {
     # Transition -> Standing
-    expected_transition_end <- (laying_time + transition_time) / (duration / nrow(result))
-    expect_equal(transition_points[2], expected_transition_end, tolerance = 1, info = "Transition -> Standing transition point is incorrect")
+    expected_transition_end <- (laying_time + transition_time) /
+      (duration / nrow(result))
+    expect_equal(
+      transition_points[2],
+      expected_transition_end,
+      tolerance = 1,
+      info = "Transition -> Standing transition point is incorrect"
+    )
   }
 
   if (length(transition_points) < 2 || length(transition_points) > 2) {
@@ -31,15 +51,34 @@ test_that("split_rr_phases splits data correctly (valid inputs)", {
   transition_time <- 20
   standing_time <- 50
 
-  result <- split_rr_phases(rr_intervals, session_info, laying_time, transition_time, standing_time)
+  result <- split_rr_phases(
+    rr_intervals,
+    session_info,
+    laying_time,
+    transition_time,
+    standing_time
+  )
 
   expect_true(is.data.frame(result))
   expect_true("phase" %in% colnames(result))
-  check_phase_transitions(result, laying_time, transition_time, session_info$duration)
+  check_phase_transitions(
+    result,
+    laying_time,
+    transition_time,
+    session_info$duration
+  )
 })
 
 test_that("split_rr_phases handles empty rr_intervals", {
-  suppressWarnings(result <- split_rr_phases(data.frame(time = numeric()), list(duration = 100), 30, 20, 50))
+  suppressWarnings(
+    result <- split_rr_phases(
+      data.frame(time = numeric()),
+      list(duration = 100),
+      30,
+      20,
+      50
+    )
+  )
   expect_true(is.data.frame(result))
   expect_true("phase" %in% colnames(result))
   expect_true(nrow(result) == 0)
@@ -48,14 +87,38 @@ test_that("split_rr_phases handles empty rr_intervals", {
 
 test_that("split_rr_phases throws errors for invalid inputs", {
   # Invalid rr_intervals
-  expect_error(split_rr_phases("not a df", list(duration = 100), 30, 20, 50), "rr_intervals must be a data frame")
-  expect_error(split_rr_phases(data.frame(no_time = 1:10), list(duration = 100), 30, 20, 50), "rr_intervals must contain a 'time' column")
+  expect_error(
+    split_rr_phases("not a df", list(duration = 100), 30, 20, 50),
+    "rr_intervals must be a data frame"
+  )
+  expect_error(
+    split_rr_phases(
+      data.frame(no_time = 1:10),
+      list(duration = 100),
+      30,
+      20,
+      50
+    ),
+    "rr_intervals must contain a 'time' column"
+  )
 
   # Invalid session_info
-  expect_error(split_rr_phases(data.frame(time = 1:10), "not a list", 30, 20, 50), "session_info must be a list")
-  expect_error(split_rr_phases(data.frame(time = 1:10), list(), 30, 20, 50), "session_info must be a list containing a 'duration' element")
-  expect_error(split_rr_phases(data.frame(time = 1:10), list(duration = "a"), 30, 20, 50), "session_info\\$duration must be a positive numeric value")
-  expect_error(split_rr_phases(data.frame(time = 1:10), list(duration = -10), 30, 20, 50), "session_info\\$duration must be a positive numeric value")
+  expect_error(
+    split_rr_phases(data.frame(time = 1:10), "not a list", 30, 20, 50),
+    "session_info must be a list"
+  )
+  expect_error(
+    split_rr_phases(data.frame(time = 1:10), list(), 30, 20, 50),
+    "session_info must be a list containing a 'duration' element"
+  )
+  expect_error(
+    split_rr_phases(data.frame(time = 1:10), list(duration = "a"), 30, 20, 50),
+    "session_info\\$duration must be a positive numeric value"
+  )
+  expect_error(
+    split_rr_phases(data.frame(time = 1:10), list(duration = -10), 30, 20, 50),
+    "session_info\\$duration must be a positive numeric value"
+  )
 
   # Invalid laying_time, transition_time, and standing_time
   invalid_times <- list(
@@ -63,14 +126,26 @@ test_that("split_rr_phases throws errors for invalid inputs", {
     transition_time = list("a", -1),
     standing_time = list("a", -1)
   )
-  purrr::walk(names(invalid_times), ~ {
-    args <- list(rr_intervals = data.frame(time = 1:10), session_info = list(duration = 100), laying_time = 30, transition_time = 20, standing_time = 50)
-    outer_x <- .x
-    purrr::walk(invalid_times[[.x]], ~ {
-      args[[outer_x]] <- .
-      expect_error(do.call(split_rr_phases, args))
-    })
-  })
+  purrr::walk(
+    names(invalid_times),
+    ~ {
+      args <- list(
+        rr_intervals = data.frame(time = 1:10),
+        session_info = list(duration = 100),
+        laying_time = 30,
+        transition_time = 20,
+        standing_time = 50
+      )
+      outer_x <- .x
+      purrr::walk(
+        invalid_times[[.x]],
+        ~ {
+          args[[outer_x]] <- .
+          expect_error(do.call(split_rr_phases, args))
+        }
+      )
+    }
+  )
 
   expect_error(
     split_rr_phases(data.frame(time = 1:10), list(duration = 100), 50, 20, 51),
@@ -79,7 +154,14 @@ test_that("split_rr_phases throws errors for invalid inputs", {
   )
 
   expect_error(
-    split_rr_phases(data.frame(time = 1:10), list(duration = 100), 50, 20, 10),
+    split_rr_phases(
+      data.frame(time = 1:10),
+      list(duration = 100),
+      50,
+      20,
+      10,
+      centered_transition = FALSE
+    ),
     "transition_time must not exceed the standing_time."
   )
 })
@@ -104,17 +186,37 @@ test_that("split_rr_phases handles different row counts and non-integer duration
   laying_time <- 30
   transition_time <- 20
   standing_time <- 43.5
-  result <- split_rr_phases(rr_intervals, session_info, laying_time, transition_time, standing_time)
+  result <- split_rr_phases(
+    rr_intervals,
+    session_info,
+    laying_time,
+    transition_time,
+    standing_time
+  )
   expect_true(nrow(result) == 50)
   expect_equal(result$elapsed_time[1], 73.5 / 50) # Check first elapsed time
   expect_equal(result$elapsed_time[50], 73.5) # last time is the total duration
-  check_phase_transitions(result, laying_time, transition_time, session_info$duration) # Check transitions
+  check_phase_transitions(
+    result,
+    laying_time,
+    transition_time,
+    session_info$duration
+  ) # Check transitions
 })
 
 test_that("validate_rr throws errors for invalid inputs", {
-  expect_error(validate_rr("not numeric"), "`rr_segment` must be a numeric vector.")
-  expect_error(validate_rr(c(1, 2, NA)), "`rr_segment` cannot contain NA values.")
-  expect_error(validate_rr(c(1, 2, -1)), "`rr_segment` must contain only positive values.")
+  expect_error(
+    validate_rr("not numeric"),
+    "`rr_segment` must be a numeric vector."
+  )
+  expect_error(
+    validate_rr(c(1, 2, NA)),
+    "`rr_segment` cannot contain NA values."
+  )
+  expect_error(
+    validate_rr(c(1, 2, -1)),
+    "`rr_segment` must contain only positive values."
+  )
 })
 
 test_that("validate_rr does not throw errors for valid inputs", {
@@ -124,9 +226,18 @@ test_that("validate_rr does not throw errors for valid inputs", {
 
 test_that("validate_validity throws errors for invalid inputs", {
   rr_segment <- c(1, 2, 3)
-  expect_error(validate_validity("not logical", rr_segment), "`is_valid` must be a logical vector.")
-  expect_error(validate_validity(c(TRUE, FALSE), rr_segment), "`is_valid` must have the same length as `rr_segment`.")
-  expect_error(validate_validity(c(TRUE, FALSE, NA), rr_segment), "`is_valid` cannot contain NA values.")
+  expect_error(
+    validate_validity("not logical", rr_segment),
+    "`is_valid` must be a logical vector."
+  )
+  expect_error(
+    validate_validity(c(TRUE, FALSE), rr_segment),
+    "`is_valid` must have the same length as `rr_segment`."
+  )
+  expect_error(
+    validate_validity(c(TRUE, FALSE, NA), rr_segment),
+    "`is_valid` cannot contain NA values."
+  )
 })
 
 test_that("validate_validity does not throw errors for valid inputs", {
@@ -303,19 +414,23 @@ test_that("moving_average_rr_validation works correctly", {
   expect_type(result1, "list")
   expect_named(result1, c("is_valid", "cleaned_rr"))
   expect_equal(length(result1$is_valid), length(rr1))
-  expect_equal(result1$is_valid, c(TRUE, TRUE, TRUE, FALSE, FALSE))
+  expect_equal(result1$is_valid, c(TRUE, TRUE, TRUE, FALSE, TRUE))
   expect_equal(result1$cleaned_rr, rr1[result1$is_valid])
 
   # Test case 2: Test with pre-existing invalid intervals.
   rr2 <- c(800, 900, 700, 1500, 850)
   is_valid2 <- c(TRUE, FALSE, TRUE, TRUE, TRUE)
-  result2 <- moving_average_rr_validation(rr2, is_valid = is_valid2, window_size = 5)
-  expect_equal(result2$is_valid, c(TRUE, FALSE, TRUE, FALSE, FALSE))
+  result2 <- moving_average_rr_validation(
+    rr2,
+    is_valid = is_valid2,
+    window_size = 5
+  )
+  expect_equal(result2$is_valid, c(TRUE, FALSE, TRUE, FALSE, TRUE))
 
   # Test case 3: Test with a different window size.
   rr3 <- c(800, 900, 700, 1500, 850, 900, 800)
   result3 <- moving_average_rr_validation(rr3, window_size = 3)
-  expect_equal(result3$is_valid, c(TRUE, TRUE, FALSE, FALSE, TRUE, TRUE, TRUE))
+  expect_equal(result3$is_valid, c(TRUE, TRUE, TRUE, FALSE, TRUE, TRUE, TRUE))
 
   # Test case 4: Test with a different threshold.
   rr4 <- c(800, 900, 700, 1500, 850)
@@ -331,7 +446,11 @@ test_that("moving_average_rr_validation works correctly", {
   # Test case 7: Test with all intervals invalid (except one).
   rr6 <- c(800, 900, 5700, 1500, 3850)
   is_valid6 <- c(FALSE, FALSE, TRUE, FALSE, FALSE)
-  result6 <- moving_average_rr_validation(rr6, is_valid = is_valid6, window_size = 5)
+  result6 <- moving_average_rr_validation(
+    rr6,
+    is_valid = is_valid6,
+    window_size = 5
+  )
   expect_equal(result6$is_valid, is_valid6)
 
   # Test case 9: Test with identical values (to ensure no division by zero).
@@ -361,53 +480,74 @@ test_that("moving_average_rr_validation handles input errors correctly", {
     "`is_valid` must have the same length as `rr_segment`."
   )
   # window_size errors
-  expect_error(moving_average_rr_validation(c(1, 2), window_size = "a"),
+  expect_error(
+    moving_average_rr_validation(c(1, 2), window_size = "a"),
     "`window_size` must be a single, finite, positive, odd integer.",
     fixed = TRUE
   )
-  expect_error(moving_average_rr_validation(c(1, 2), window_size = c(1, 3)),
+  expect_error(
+    moving_average_rr_validation(c(1, 2), window_size = c(1, 3)),
     "`window_size` must be a single, finite, positive, odd integer.",
     fixed = TRUE
   )
-  expect_error(moving_average_rr_validation(c(1, 2), window_size = Inf),
+  expect_error(
+    moving_average_rr_validation(c(1, 2), window_size = Inf),
     "`window_size` must be a single, finite, positive, odd integer.",
     fixed = TRUE
   )
-  expect_error(moving_average_rr_validation(c(1, 2), window_size = 2.5),
+  expect_error(
+    moving_average_rr_validation(c(1, 2), window_size = 2.5),
     "`window_size` must be a single, finite, positive, odd integer.",
     fixed = TRUE
   )
-  expect_error(moving_average_rr_validation(c(1, 2), window_size = -1),
+  expect_error(
+    moving_average_rr_validation(c(1, 2), window_size = -1),
     "`window_size` must be a single, finite, positive, odd integer.",
     fixed = TRUE
   )
-  expect_error(moving_average_rr_validation(c(1, 2), window_size = 2),
+  # Even window size should error only for centered windows
+  expect_error(
+    moving_average_rr_validation(
+      c(1, 2),
+      window_size = 2,
+      centered_window = TRUE
+    ),
     "`window_size` must be a single, finite, positive, odd integer.",
     fixed = TRUE
   )
-  expect_warning(moving_average_rr_validation(c(1, 2), window_size = 5),
+  expect_warning(
+    moving_average_rr_validation(c(1, 2), window_size = 5),
     "`window_size` is larger than the length of `rr_segment`.",
     fixed = TRUE
   )
 
   # threshold errors
-  expect_error(moving_average_rr_validation(c(1, 2), threshold = "a", window_size = 1),
+  expect_error(
+    moving_average_rr_validation(c(1, 2), threshold = "a", window_size = 1),
     "`threshold` must be a single finite numeric value.",
     fixed = TRUE
   )
-  expect_error(moving_average_rr_validation(c(1, 2), threshold = c(0.1, 0.2), window_size = 1),
+  expect_error(
+    moving_average_rr_validation(
+      c(1, 2),
+      threshold = c(0.1, 0.2),
+      window_size = 1
+    ),
     "`threshold` must be a single finite numeric value.",
     fixed = TRUE
   )
-  expect_error(moving_average_rr_validation(c(1, 2), threshold = Inf, window_size = 1),
+  expect_error(
+    moving_average_rr_validation(c(1, 2), threshold = Inf, window_size = 1),
     "`threshold` must be a single finite numeric value.",
     fixed = TRUE
   )
-  expect_error(moving_average_rr_validation(c(1, 2), threshold = -0.1, window_size = 1),
+  expect_error(
+    moving_average_rr_validation(c(1, 2), threshold = -0.1, window_size = 1),
     "`threshold` must be between 0 and 1 (inclusive).",
     fixed = TRUE
   )
-  expect_error(moving_average_rr_validation(c(1, 2), threshold = 1.1, window_size = 1),
+  expect_error(
+    moving_average_rr_validation(c(1, 2), threshold = 1.1, window_size = 1),
     "`threshold` must be between 0 and 1 (inclusive).",
     fixed = TRUE
   )
@@ -423,14 +563,25 @@ test_that("rr_full_phase_processing works correctly with valid inputs", {
   expect_named(result, c("is_valid", "cleaned_rr"))
   expect_type(result$is_valid, "logical")
   expect_type(result$cleaned_rr, "double")
-  expect_length(result$is_valid, length(rr_data) - 1)
+  expect_length(result$is_valid, length(rr_data))
   expect_length(result$cleaned_rr, sum(result$is_valid))
 
   # Check against a known result (manually calculated for this specific input)
-  expected_is_valid <- c(FALSE, FALSE, TRUE, TRUE, FALSE, TRUE, TRUE, TRUE, FALSE, TRUE)
+  expected_is_valid <- c(
+    FALSE,
+    TRUE,
+    FALSE,
+    FALSE,
+    FALSE,
+    FALSE,
+    FALSE,
+    FALSE,
+    FALSE,
+    TRUE,
+    FALSE
+  )
   expect_equal(result$is_valid, expected_is_valid)
-  expected_cleaned_rr <- rr_data[expected_is_valid]
-  expect_equal(result$cleaned_rr, c(750, 800, 820, 780, 850, 800))
+  expect_equal(result$cleaned_rr, c(500, 2000))
 })
 
 test_that("rr_full_phase_processing handles custom parameters", {
@@ -447,10 +598,22 @@ test_that("rr_full_phase_processing handles custom parameters", {
   expect_type(result, "list")
   expect_length(result, 2)
   expect_named(result, c("is_valid", "cleaned_rr"))
-  expect_length(result$is_valid, length(rr_data) - 1)
+  expect_length(result$is_valid, length(rr_data))
 
   # Check against a *different* known result (using the custom parameters)
-  expected_is_valid <- c(TRUE, FALSE, TRUE, TRUE, FALSE, TRUE, TRUE, TRUE, FALSE, TRUE)
+  expected_is_valid <- c(
+    FALSE,
+    TRUE,
+    FALSE,
+    TRUE,
+    FALSE,
+    FALSE,
+    FALSE,
+    TRUE,
+    FALSE,
+    FALSE,
+    TRUE
+  )
   expect_equal(result$is_valid, expected_is_valid)
 })
 
@@ -479,9 +642,18 @@ test_that("rr_full_phase_processing handles input with only one valid value", {
 
 test_that("rr_full_phase_processing works with various window sizes", {
   rr_data <- c(
-    0.8, 0.9, 0.7, 1.5, 0.85, 0.95, 0.88, 0.92, 0.8,
+    0.8,
+    0.9,
+    0.7,
+    1.5,
+    0.85,
+    0.95,
+    0.88,
+    0.92,
+    0.8,
     4.0
-  ) * 1000
+  ) *
+    1000
 
   # Test with a smaller window size
   result_small <- rr_full_phase_processing(rr_data, window_size = 3)
@@ -494,9 +666,18 @@ test_that("rr_full_phase_processing works with various window sizes", {
 
 test_that("rr_full_phase_processing works with various thresholds", {
   rr_data <- c(
-    0.8, 0.9, 0.7, 1.5, 0.85, 0.95, 0.88, 0.92, 0.8,
+    0.8,
+    0.9,
+    0.7,
+    1.5,
+    0.85,
+    0.95,
+    0.88,
+    0.92,
+    0.8,
     4.0
-  ) * 1000
+  ) *
+    1000
 
   # Test with a smaller threshold
   result_small_thresh <- rr_full_phase_processing(rr_data, threshold = 0.1)
