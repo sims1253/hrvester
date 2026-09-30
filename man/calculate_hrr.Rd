@@ -4,12 +4,20 @@
 \alias{calculate_hrr}
 \title{Calculate Heart Rate Recovery metrics}
 \usage{
-calculate_hrr(standing_hr, baseline_hr)
+calculate_hrr(standing_hr, baseline_hr, times = NULL)
 }
 \arguments{
-\item{standing_hr}{Vector of heart rate values after standing}
+\item{standing_hr}{Vector of heart rate values after standing. Without
+\code{times}, values are interpreted as one-per-second samples of the first
+60 seconds after standing. With \code{times}, values may be irregularly
+sampled and are selected by elapsed time.}
 
 \item{baseline_hr}{Resting heart rate before standing}
+
+\item{times}{Optional numeric vector of elapsed times (in seconds, from
+the moment of standing) matching \code{standing_hr}. When supplied, the peak
+is taken over the first 20 seconds and the 60-second value is the last
+sample within 60 seconds, both by timestamp rather than by position.}
 }
 \value{
 List containing recovery metrics:

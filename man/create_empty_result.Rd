@@ -4,7 +4,14 @@
 \alias{create_empty_result}
 \title{Create empty result row}
 \usage{
-create_empty_result(file_path, session_date, week, time_of_day)
+create_empty_result(
+  file_path,
+  session_date,
+  week,
+  time_of_day,
+  file_digest = NA_character_,
+  config_id = NA_character_
+)
 }
 \arguments{
 \item{file_path}{Source file path}
@@ -14,6 +21,10 @@ create_empty_result(file_path, session_date, week, time_of_day)
 \item{week}{Week number}
 
 \item{time_of_day}{Time of day}
+
+\item{file_digest}{MD5 digest of the source file contents}
+
+\item{config_id}{Analysis configuration identity}
 }
 \value{
 Tibble with NA values

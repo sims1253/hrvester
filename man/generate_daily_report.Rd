@@ -10,9 +10,12 @@ generate_daily_report(data)
 \item{data}{A dataframe containing HRV metrics for at least 8 consecutive
 days (current day plus 7-day baseline). Should include:
 \itemize{
-\item date (Date): Measurement dates
+\item date (Date or character): Measurement dates in ISO format;
+character dates (as produced by the processing pipeline and cache)
+are accepted and normalized
 \item laying_rmssd (numeric): RMSSD during laying position
-\item laying_resting_hr (numeric): Resting heart rate
+\item laying_resting_hr (numeric): Resting heart rate; fractional
+values are supported
 \item orthostatic_rise (numeric): Orthostatic response
 }}
 }
@@ -29,4 +32,11 @@ A formatted character string containing the HRV report with sections:
 \description{
 Creates a formatted text report summarizing current HRV status, metrics, and
 recommendations.
+}
+\details{
+When several measurements share the latest date, the first row
+of that date (in input order) is reported. At least two usable baseline
+days within the seven days before the current day are required (the
+7-day trend needs two points); the baseline does not need to be
+complete.
 }

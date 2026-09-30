@@ -180,3 +180,178 @@ test_that("NA input values are handled", {
   result <- classify_hrv_artefacts_lipponen(na_data) #Should not throw error
   expect_true(is.numeric(result$time)) #Check that it returns numeric
 })
+
+# ============== Review regression tests (R07, R10, R09, R08) ==============
+
+test_that("extra beat removal preserves elapsed duration (R07)", {
+  # The classifier flags the SECOND short interval of a false-beat pair as
+  # "extra"; the merge must restore the true interval
+  a <- tibble::tibble(
+    time = c(800, 400, 400, 800),
+    classification = c("normal", "short", "extra", "normal")
+  )
+  aa <- correct_hrv_artefacts_lipponen(a)
+  expect_equal(aa$time, c(800, 800, 800))
+  expect_equal(sum(aa$time), sum(a$time))
+  expect_equal(nrow(aa), 3)
+
+  # Degenerate hand-supplied classification at the first row merges forward
+  b <- tibble::tibble(
+    time = c(400, 400, 800),
+    classification = c("extra", "normal", "normal")
+  )
+  bb <- correct_hrv_artefacts_lipponen(b)
+  expect_equal(bb$time, c(800, 800))
+  expect_equal(sum(bb$time), sum(b$time))
+})
+
+test_that("extra beat at the series end merges into the previous interval (R07)", {
+  a <- tibble::tibble(
+    time = c(800, 800, 400, 400),
+    classification = c("normal", "normal", "short", "extra")
+  )
+  aa <- correct_hrv_artefacts_lipponen(a)
+  expect_equal(aa$time, c(800, 800, 800))
+  expect_equal(sum(aa$time), sum(a$time))
+})
+
+test_that("classifier-driven extra beat is merged with its short partner (R07)", {
+  set.seed(1)
+  base <- rnorm(60, mean = 800, sd = 40)
+  true_int <- base[21]
+  rr <- c(
+    base[1:20],
+    true_int / 2 + rnorm(1, 0, 5),
+    true_int / 2 + rnorm(1, 0, 5),
+    base[22:60]
+  )
+  classified <- classify_hrv_artefacts_lipponen(tibble::tibble(time = rr))
+  # The classifier flags the second half of the split interval as "extra"
+  expect_true("extra" %in% classified$classification)
+
+  corrected <- correct_hrv_artefacts_lipponen(classified)
+  expect_equal(nrow(corrected), length(rr) - 1)
+  # The merged interval restores the true interval within noise
+  merged_row <- which(corrected$correction == "merged")
+  expect_length(merged_row, 1)
+  expect_equal(as.numeric(corrected$time[merged_row]), true_int, tolerance = 15)
+})
+
+test_that("missed beat insertion preserves elapsed duration at any position (R07)", {
+  # Missed beat at the first row: the prefix must be empty, not 1:0
+  b <- tibble::tibble(
+    time = c(1600, 800, 800),
+    classification = c("missed", "normal", "normal")
+  )
+  bb <- correct_hrv_artefacts_lipponen(b)
+  expect_equal(bb$time, rep(800, 4))
+  expect_equal(nrow(bb), 4)
+  expect_equal(sum(bb$time), sum(b$time))
+
+  # Missed beat in the middle
+  m <- tibble::tibble(
+    time = c(800, 1600, 800),
+    classification = c("normal", "missed", "normal")
+  )
+  mm <- correct_hrv_artefacts_lipponen(m)
+  expect_equal(mm$time, rep(800, 4))
+  expect_equal(sum(mm$time), sum(m$time))
+})
+
+test_that("mixed adjacent artifacts keep total duration stable (R07)", {
+  x <- tibble::tibble(
+    time = c(800, 400, 1600, 800, 800),
+    classification = c("normal", "extra", "missed", "normal", "normal")
+  )
+  xx <- correct_hrv_artefacts_lipponen(x)
+  expect_equal(sum(xx$time), sum(x$time))
+})
+
+test_that("calculate_hrv_rmssd uses successfully corrected beats (R10)", {
+  # Ectopic beat with known linear-ramp neighbours: including the repaired
+  # beat yields RMSSD 10; dropping it (the old behavior) yields 10.76
+  rr <- c(seq(800, 890, 10), 400, seq(910, 1000, 10))
+  cl <- tibble::tibble(
+    time = rr,
+    classification = replace(rep("normal", length(rr)), 11, "ectopic")
+  )
+  res <- calculate_hrv_rmssd(cl)
+  full_series_rmssd <- sqrt(mean(diff(res$corrected_data$time)^2))
+  expect_equal(as.numeric(res$rmssd_values), full_series_rmssd)
+  expect_equal(as.numeric(res$rmssd_values), 10)
+
+  # Repaired beats carry the correction flag and stay in the series used
+  # for the RMSSD calculation
+  repaired <- res$corrected_data$correction == "interpolated"
+  expect_true(any(repaired))
+})
+
+test_that("calculate_rmssd_orthostatic_enhanced applies the transition exclusion (R09)", {
+  d <- tibble::tibble(time = rep(0.8, 450)) # 360 s in seconds
+  a <- calculate_rmssd_orthostatic_enhanced(d, transition_exclusion_time = 0)
+  b <- calculate_rmssd_orthostatic_enhanced(d, transition_exclusion_time = 60)
+
+  # Excluding 60 s around standing onset removes ~75 lying beats
+  beats_a <- sum(a$segment_beat_counts)
+  beats_b <- sum(b$segment_beat_counts)
+  expect_true(beats_a - beats_b >= 70)
+  expect_true(beats_a - beats_b <= 80)
+
+  # Zero exclusion is a deliberate no-op
+  expect_equal(a$n_segments, b$n_segments)
+})
+
+test_that("calculate_rmssd_orthostatic_enhanced accepts milliseconds (R08)", {
+  # 0.81 s beats keep every protocol boundary strictly between beats, so no
+  # floating-point boundary wobble can differ between unit spellings
+  dm <- tibble::tibble(time = rep(810, 450))
+  r_ms <- calculate_rmssd_orthostatic_enhanced(
+    dm,
+    transition_exclusion_time = 0,
+    time_unit = "milliseconds"
+  )
+  r_s <- calculate_rmssd_orthostatic_enhanced(
+    tibble::tibble(time = rep(0.81, 450)),
+    transition_exclusion_time = 0,
+    time_unit = "seconds"
+  )
+  # Both unit spellings produce identical segment durations in seconds
+  expect_equal(r_ms$segment_lengths, r_s$segment_lengths)
+  expect_equal(r_ms$rmssd_lying, r_s$rmssd_lying)
+})
+
+test_that("segments split on gaps identically in seconds and milliseconds (R08)", {
+  # Two five-beat 2000 ms blocks among 800 ms beats create physical gaps
+  # after artifact removal; each gap must split segments in both unit
+  # spellings. Gaps sit inside the phases, away from the phase boundary.
+  make_series <- function(scale) {
+    tibble::tibble(time = c(
+      rep(800, 150) * scale,
+      rep(2000, 5) * scale,
+      rep(800, 150) * scale,
+      rep(2000, 5) * scale,
+      rep(800, 150) * scale
+    ))
+  }
+  # initial_stabilization_time = 50 s (62.5 beats) keeps the boundary off
+  # beat ends, avoiding the platform float wobble of exact boundaries
+  r_ms <- calculate_rmssd_orthostatic_enhanced(
+    make_series(1),
+    time_unit = "milliseconds",
+    transition_exclusion_time = 0,
+    initial_stabilization_time = 50,
+    min_segment_length = 10,
+    min_segment_beats = 10
+  )
+  r_s <- calculate_rmssd_orthostatic_enhanced(
+    make_series(1 / 1000),
+    time_unit = "seconds",
+    transition_exclusion_time = 0,
+    initial_stabilization_time = 50,
+    min_segment_length = 10,
+    min_segment_beats = 10
+  )
+  expect_gte(r_ms$n_segments, 3)
+  expect_equal(r_ms$n_segments, r_s$n_segments)
+  expect_equal(r_ms$segment_lengths, r_s$segment_lengths)
+})

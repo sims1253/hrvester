@@ -124,3 +124,41 @@ test_that("calculate_hrr handles recovery calculations correctly", {
   expect_true(result$hrr_60s > 0)
   expect_true(result$hrr_relative >= 0 && result$hrr_relative <= 100)
 })
+
+# ============== Review regression tests (R08) ==============
+
+test_that("calculate_hrv treats milliseconds as the canonical unit (R08)", {
+  # Extraction output is milliseconds; input and output units match
+  out_ms <- calculate_hrv(rep(800, 100))
+  expect_true(out_ms$rmssd >= 0)
+
+  # Known-value check: successive differences of exactly 20 ms give RMSSD 20
+  beats <- seq(800, 1200, by = 20) # in milliseconds
+  expect_equal(calculate_hrv(beats)$rmssd, 20)
+  expect_equal(calculate_hrv(beats / 1000)$rmssd, 0.02) # seconds in, seconds out
+})
+
+test_that("calculate_hrr selects peak and 60 s values by timestamp (R08/R02)", {
+  times <- 0:60
+  hr <- c(rep(60, 5), 100, rep(80, 24), rep(85, 30), 70)
+
+  # Peak must come from the first 20 s; the 60 s value is the last sample
+  # within 60 s (70 bpm at t = 60), not the 60th element
+  res <- calculate_hrr(hr, baseline_hr = 60, times = times)
+  expect_equal(res$orthostatic_rise, 40)
+  expect_equal(res$hrr_60s, 30)
+  expect_equal(res$hrr_relative, 75) # (100 - 70) / (100 - 60) * 100
+
+  # Insufficient time coverage returns NA explicitly
+  res_short <- calculate_hrr(hr[1:10], baseline_hr = 60, times = times[1:10])
+  expect_true(is.na(res_short$hrr_60s))
+
+  # No sample in the first 20 s: NA, never -Inf
+  res_no_peak <- calculate_hrr(
+    c(rep(80, 40)),
+    baseline_hr = 60,
+    times = 25:64
+  )
+  expect_true(is.na(res_no_peak$hrr_60s))
+  expect_true(is.na(res_no_peak$orthostatic_rise))
+})

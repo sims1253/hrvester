@@ -29,13 +29,17 @@ A list containing:
 \item \code{corrected_rr}: Numeric vector of corrected RR intervals
 \item \code{classifications}: Character vector of beat classifications
 \item \code{corrections_applied}: Number of corrections applied
-\item \code{rmssd_error}: Estimated RMSSD error from corrections
+\item \code{relative_rmssd_change}: Relative change in RMSSD caused by the
+corrections, compared with the \emph{uncorrected input}. This is a
+change diagnostic, not an accuracy measure: a perfect correction of a
+corrupted series yields a large value, while leaving the series
+unchanged yields zero. \code{NA} when the input RMSSD is zero.
 }
 }
 \description{
 Applies the complete Lipponen-Tarvainen algorithm for artifact detection
-and correction. This state-of-the-art method achieves <2\% HRV error by
-combining robust classification with appropriate correction strategies.
+and correction, combining robust classification with appropriate
+correction strategies.
 }
 \details{
 This function implements the complete Lipponen-Tarvainen algorithm:
@@ -43,15 +47,15 @@ This function implements the complete Lipponen-Tarvainen algorithm:
 \item Uses existing \code{classify_hrv_artefacts_lipponen()} for detection
 \item Applies appropriate correction for each artifact type:
 \itemize{
-\item Extra beats: Removed from sequence
+\item Extra beats: Removed from sequence (adjacent intervals merged)
 \item Missed beats: Insert estimated beat at half interval
 \item Ectopic/Long/Short: Cubic spline interpolation
 }
-\item Targets <2\% HRV error as demonstrated in research
 }
 
-The algorithm represents the current state-of-the-art in HRV artifact
-correction, providing superior accuracy for research applications.
+Accuracy of the correction against clean reference data is not estimated
+here; validate against independently annotated signals if accuracy
+claims are required.
 }
 \examples{
 \dontrun{

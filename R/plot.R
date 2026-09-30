@@ -16,11 +16,11 @@
 #' @export
 #' @importFrom FITfileR readFitFile
 #' @importFrom dplyr "%>%"
-#' @importFrom ggplot2 ggplot geom_line geom_vline scale_x_continuous annotate aes xlab theme_bw ggtitle
+#' @importFrom ggplot2 ggplot geom_line geom_vline scale_x_continuous annotate aes xlab ylab theme_bw ggtitle
 hrv_plot <- function(file_path, base = "HR") {
   fit_object <- FITfileR::readFitFile(file_path)
 
-  # Extract RR intervals
+  # Extract RR intervals (in milliseconds; a single 'time' column)
   RR <- extract_rr_data(
     fit_object = fit_object
   )
@@ -30,13 +30,13 @@ hrv_plot <- function(file_path, base = "HR") {
     file_path = file_path
   )
 
-  standing_RR <- RR$standing
-  laying_RR <- RR$laying
+  # Build an elapsed-time (seconds) series from the actual beat intervals
   RR <- data.frame(
-    RR = c(laying_RR, standing_RR),
-    time = cumsum(c(laying_RR, standing_RR))
+    RR = RR$time / 1000,
+    time = cumsum(RR$time) / 1000
   )
-  RR$RR_ms <- RR$RR * 1000
+  laying_RR_mean <- mean(RR$RR[RR$time <= 180], na.rm = TRUE)
+  standing_RR_mean <- mean(RR$RR[RR$time > 180], na.rm = TRUE)
 
   if (base == "RR") {
     p <- RR %>%
@@ -52,35 +52,35 @@ hrv_plot <- function(file_path, base = "HR") {
         "text",
         color = "red",
         x = 80,
-        y = mean(standing_RR),
+        y = standing_RR_mean,
         label = paste0("SDNN(ms): ", metrics$laying_sdnn)
       ) +
       annotate(
         "text",
         color = "red",
         x = 80,
-        y = mean(standing_RR) - 0.04,
+        y = standing_RR_mean - 0.04,
         label = paste0("rMSSD(ms): ", metrics$laying_rmssd)
       ) +
       annotate(
         "text",
         color = "red",
         x = 80,
-        y = mean(standing_RR) - 0.08,
+        y = standing_RR_mean - 0.08,
         label = paste0("resting HR(bpm): ", metrics$laying_resting_hr)
       ) +
       annotate(
         "text",
         color = "red",
         x = 280,
-        y = mean(laying_RR) + 0.1,
+        y = laying_RR_mean + 0.1,
         label = paste0("SDNN(ms): ", metrics$standing_sdnn)
       ) +
       annotate(
         "text",
         color = "red",
         x = 280,
-        y = mean(laying_RR) + 0.06,
+        y = laying_RR_mean + 0.06,
         label = paste0("rMSSD(ms): ", metrics$standing_rmssd)
       ) +
       annotate(
@@ -91,6 +91,7 @@ hrv_plot <- function(file_path, base = "HR") {
         label = paste0("max HR(bpm): ", max(HR))
       ) +
       xlab("Time (s)") +
+      ylab("RR (s)") +
       ggtitle(metrics$time_of_day) +
       theme_bw(base_size = 12)
   } else if (base == "HR") {
@@ -169,7 +170,22 @@ hrv_plot <- function(file_path, base = "HR") {
 #' @importFrom dplyr "%>%" group_by summarise filter across bind_rows as_tibble
 #' @importFrom ggplot2 ggplot geom_point geom_line geom_hline facet_grid theme_bw aes ylab
 hrv_trend_plot <- function(metrics, just_rssme = FALSE) {
-  metrics <- dplyr::select(metrics, !c(source_file, package_version, activity))
+  metrics <- dplyr::select(
+    metrics,
+    !dplyr::any_of(
+      c(
+        "source_file",
+        "package_version",
+        "activity",
+        # Character columns (quality grades and provenance) cannot be
+        # combined with numeric measurements in one value column
+        "laying_quality_grade",
+        "standing_quality_grade",
+        "file_digest",
+        "config_id"
+      )
+    )
+  )
   metrics <- calculate_moving_averages(metrics)
 
   long_metrics <- metrics %>%

@@ -323,3 +323,155 @@ test_that("generate_daily_report produces expected format", {
   invalid_data <- test_data[, !names(test_data) %in% c("orthostatic_rise")]
   expect_warning(expect_error(generate_daily_report(invalid_data)))
 })
+
+# ============== Review regression tests (R13, R16) ==============
+
+test_that("generate_daily_report accepts pipeline output: character dates and fractional HR (R13)", {
+  # process_fit_file()/cache emit dates as character; resting HR may be
+  # fractional, which %d formatting cannot print
+  d <- data.frame(
+    date = as.character(as.Date("2026-01-01") + 0:7),
+    laying_rmssd = 50,
+    laying_resting_hr = 60.5,
+    orthostatic_rise = 20,
+    standing_hr = 80,
+    hrr_60s = 25,
+    time_of_day = "Morning"
+  )
+
+  report <- expect_no_warning(generate_daily_report(d))
+  expect_true(grepl("HRV Status Report for", report))
+  expect_true(grepl("60.5", report)) # fractional HR rendered, not an error
+
+  # Mixed Date and character inputs both work
+  d2 <- d
+  d2$date <- as.Date(d2$date)
+  expect_no_error(generate_daily_report(d2))
+
+  # Invalid dates are rejected explicitly
+  d3 <- d
+  d3$date[1] <- "not-a-date"
+  expect_error(generate_daily_report(d3), "invalid dates")
+})
+
+test_that("generate_daily_report requires a usable baseline (R13)", {
+  d <- data.frame(
+    date = as.character(as.Date("2026-01-01") + 0:7),
+    laying_rmssd = c(rep(NA_real_, 7), 50),
+    laying_resting_hr = 60,
+    orthostatic_rise = 20,
+    standing_hr = 80,
+    hrr_60s = 25,
+    time_of_day = "Morning"
+  )
+  # Eight rows exist but no usable baseline day within the last 7 days
+  expect_error(
+    generate_daily_report(d),
+    "At least two usable baseline measurements are required"
+  )
+
+  # A single usable baseline day also fails: the 7-day trend needs two
+  # points
+  d2 <- d
+  d2$laying_rmssd[2] <- 50
+  expect_error(
+    generate_daily_report(d2),
+    "At least two usable baseline measurements are required"
+  )
+})
+
+test_that("calculate_neural_recovery reports insufficient data instead of Low (R16)", {
+  d <- data.frame(
+    date = as.Date("2026-01-01") + 0:13,
+    laying_rmssd = 50,
+    laying_resting_hr = 60,
+    standing_hr = 75,
+    hrr_60s = 25
+  )
+  x <- calculate_neural_recovery(d)
+
+  # Startup rows without a usable moving average
+  expect_true(all(is.na(x$neural_recovery_score[1:4])))
+  expect_true(all(x$recovery_status[1:4] == "Insufficient data"))
+
+  # Once the baseline exists, real scores are classified
+  expect_false(is.na(x$neural_recovery_score[14]))
+  expect_true(x$recovery_status[14] %in%
+    c("Fresh", "Good", "Normal", "Reduced", "Low"))
+
+  # A missing component never yields a complete-looking score
+  d$standing_hr[14] <- NA
+  x2 <- calculate_neural_recovery(d)
+  expect_true(is.na(x2$neural_recovery_score[14]))
+  expect_equal(x2$recovery_status[14], "Insufficient data")
+
+  d3 <- d
+  d3$standing_hr[14] <- 75
+  d3$hrr_60s[14] <- NA
+  x3 <- calculate_neural_recovery(d3)
+  expect_true(is.na(x3$neural_recovery_score[14]))
+  expect_equal(x3$recovery_status[14], "Insufficient data")
+})
+
+test_that("training_recommendations handles NA scores explicitly (R16)", {
+  rec <- training_recommendations(NA)
+  expect_equal(rec$status, "Insufficient data")
+  expect_false(is.null(rec$focus))
+  expect_true(is.na(rec$score))
+
+  # Numeric out-of-range values still error
+  expect_error(training_recommendations(150))
+  expect_error(training_recommendations("not numeric"))
+})
+
+test_that("analyze_readiness flags missing baselines explicitly (R16)", {
+  current <- data.frame(
+    laying_rmssd = 50,
+    laying_resting_hr = 60,
+    orthostatic_rise = 20
+  )
+  baseline <- data.frame(
+    laying_rmssd = c(rep(50, 6), NA),
+    laying_resting_hr = rep(60, 7),
+    orthostatic_rise = rep(20, 7)
+  )
+  result <- analyze_readiness(current, baseline)
+  expect_equal(result$status, "NORMAL")
+
+  # A wholly NA baseline component produces an explicit status, not a
+  # silent WARNING and not an error
+  baseline_na <- data.frame(
+    laying_rmssd = rep(NA_real_, 7),
+    laying_resting_hr = rep(60, 7),
+    orthostatic_rise = rep(20, 7)
+  )
+  result_na <- analyze_readiness(current, baseline_na)
+  expect_equal(result_na$status, "INSUFFICIENT_DATA")
+})
+
+test_that("generate_daily_report gate matches the trend input with duplicate days (R13)", {
+  # Two rows per date (Morning/Evening): the last 7 rows can carry fewer
+  # usable values than the window as a whole (analyze_readiness warns about
+  # the 14-row baseline, which is expected here)
+  mk <- function(rmssd) data.frame(
+    date = rep(as.character(as.Date("2026-01-01") + 0:7), each = 2),
+    laying_rmssd = rmssd,
+    laying_resting_hr = 60,
+    orthostatic_rise = 20,
+    standing_hr = 80,
+    hrr_60s = 25,
+    time_of_day = rep(c("Morning", "Evening"), 8)
+  )
+
+  # Exactly one usable baseline value overall: the gate must reject
+  d <- mk(c(50, rep(NA_real_, 13), 55, NA))
+  expect_error(
+    suppressWarnings(generate_daily_report(d)),
+    "At least two usable baseline measurements are required"
+  )
+
+  # Two usable values early in the window: a naive tail(7) would hold none,
+  # the NA-trimmed gate accepts
+  d2 <- mk(c(50, 52, rep(NA_real_, 12), 55, NA))
+  expect_no_error(suppressWarnings(generate_daily_report(d2)))
+})

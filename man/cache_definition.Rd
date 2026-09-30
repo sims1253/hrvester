@@ -31,6 +31,9 @@ A tibble with columns:
 \item standing_signal_quality_index (numeric): Signal quality index for standing phase
 \item standing_data_completeness (numeric): Data completeness for standing phase
 \item standing_quality_grade (character): Quality grade for standing phase (A/B/C/D/F)
+\item file_digest (character): MD5 digest of the source file contents
+\item config_id (character): Digest of the analysis configuration the
+entry was produced with
 }
 }
 \description{

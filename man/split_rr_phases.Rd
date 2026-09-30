@@ -10,7 +10,8 @@ split_rr_phases(
   laying_time = 180,
   transition_time = 20,
   standing_time = 180,
-  centered_transition = TRUE
+  centered_transition = TRUE,
+  time_unit = c("milliseconds", "seconds")
 )
 }
 \arguments{
@@ -20,26 +21,31 @@ and a \code{phase} column.}
 
 \item{session_info}{A list containing session information.  Must include a
 numeric element named \code{duration} representing the total duration of the
-recording (in the same units as \code{laying_time}, \code{transition_time}, and
-\code{standing_time}).}
+recording in seconds.}
 
-\item{laying_time}{Numeric. The duration of the laying phase (e.g., in
-seconds). Must be non-negative.}
+\item{laying_time}{Numeric. The duration of the laying phase in seconds.
+Must be non-negative.}
 
-\item{transition_time}{Numeric. The duration of the transition phase (e.g.,
-in seconds). Must be non-negative.}
+\item{transition_time}{Numeric. The duration of the transition phase in
+seconds. Must be non-negative.}
 
-\item{standing_time}{Numeric. The duration of the standing phase (e.g., in
-seconds). Must be non-negative.}
+\item{standing_time}{Numeric. The duration of the standing phase in
+seconds. Must be non-negative.}
 
 \item{centered_transition}{Indicates if the transition time should be split
 into laying and standig times. FALSE, if transition time is only taken
 from the laying phase.}
+
+\item{time_unit}{Character. The unit of the \code{time} column: \code{"milliseconds"}
+(the default, matching \code{\link[=extract_rr_data]{extract_rr_data()}} output) or \code{"seconds"}.
+Elapsed time is always returned in seconds.}
 }
 \value{
 A data frame with the same data as \code{rr_intervals}, but with two
 added columns:
-\item{elapsed_time}{The cumulative time from the start of the recording.}
+\item{elapsed_time}{The cumulative time from the start of the recording,
+in seconds, derived from the actual beat intervals (interval-end
+convention: row \code{i} carries the time at which interval \code{i} ends).}
 \item{phase}{A character string indicating the phase: "laying",
 "transition", or "standing".}
 }
@@ -48,16 +54,25 @@ This function splits RR intervals into the orthostatic test phases
 (laying, transition, and standing) based on specified time thresholds.
 }
 \details{
-The sum of \code{laying_time} and \code{standing_time} cannot exceed
-\code{session_info$duration}. If \code{rr_intervals} is an empty data frame, a
-warning is issued, and an empty data frame with a \code{phase} column is
-returned.
+Phase assignment uses the real beat timeline: \code{elapsed_time} is
+the cumulative sum of the RR intervals converted to seconds. The series
+is never stretched to match \code{session_info$duration}, so heart-rate
+changes between phases cannot move beats into the wrong phase. The sum
+of \code{laying_time} and \code{standing_time} cannot exceed
+\code{session_info$duration}. If the total beat time deviates from
+\code{session_info$duration} by more than 5 percent, a warning is issued and
+the beat-derived timeline is used. If \code{rr_intervals} is an empty data
+frame, a warning is issued, and an empty data frame with a \code{phase}
+column is returned.
 }
 \examples{
-# Example with valid inputs
-rr_data <- data.frame(time = 1:100)
+# Example with valid inputs (time in seconds)
+rr_data <- data.frame(time = rep(1, 100))
 session_data <- list(duration = 100)
-result <- split_rr_phases(rr_data, session_data, 30, 20, 50)
+result <- split_rr_phases(
+  rr_data, session_data, 30, 20, 50,
+  time_unit = "seconds"
+)
 head(result)
 
 # Example with an empty rr_intervals data frame
@@ -68,7 +83,7 @@ print(result_empty)
 
 \dontrun{
 # Example with invalid input (sum of times exceeds duration)
-rr_data <- data.frame(time = 1:100)
+rr_data <- data.frame(time = rep(1, 100))
 session_data <- list(duration = 100)
 # This will throw an error
 result_error <- split_rr_phases(rr_data, session_data, 50, 60, 70)

@@ -16,7 +16,9 @@ classify_hrv_artefacts_lipponen(
 \item{data}{A \code{dplyr::tibble} with at least one column:
 \itemize{
 \item \code{time}: A numeric vector representing RR intervals (time since the last
-beat) in seconds.
+beat) in any consistent unit; the package pipeline uses milliseconds.
+The algorithm only relies on relative differences, so it is
+unit-invariant.
 }}
 
 \item{alpha}{A numeric value representing the scaling factor for threshold
@@ -31,7 +33,7 @@ calculation.  Defaults to 5.2 as suggested in the paper.}
 \value{
 A \code{dplyr::tibble} with the following columns:
 \itemize{
-\item \code{time}: The original RR intervals (in seconds).
+\item \code{time}: The original RR intervals (same unit as the input).
 \item \code{classification}: A character vector indicating the classification of each
 RR interval.  (Same possible values as before)
 }

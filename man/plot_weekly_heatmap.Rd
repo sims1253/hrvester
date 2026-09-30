@@ -28,3 +28,8 @@ Status categories are:
 \item Warning: RMSSD change < -10\%
 }
 }
+\details{
+Weekday keys are computed numerically (not from locale-dependent weekday
+names) and week keys combine the ISO week-year with the ISO week number,
+so dates around New Year stay grouped and the plot is locale-independent.
+}

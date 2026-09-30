@@ -23,6 +23,10 @@ A list containing training recommendations including:
 (if applicable)
 \item score (numeric): The original neural recovery score
 }
+
+An \code{NA} score (insufficient data) returns an explicit
+"Insufficient data" status without a training prescription instead of
+an error.
 }
 \description{
 Provides training recommendations based on the calculated neural recovery

@@ -276,6 +276,10 @@ plot_hrv_dashboard <- function(data) {
 #' - Caution: RMSSD change between -10% and -5%
 #' - Warning: RMSSD change < -10%
 #'
+#' Weekday keys are computed numerically (not from locale-dependent weekday
+#' names) and week keys combine the ISO week-year with the ISO week number,
+#' so dates around New Year stay grouped and the plot is locale-independent.
+#'
 #' @param data A data frame containing HRV metrics with columns:
 #' @param method Either neural_recovery_score or rmssd_change
 #'   \itemize{
@@ -285,26 +289,38 @@ plot_hrv_dashboard <- function(data) {
 #' @return A ggplot2 heatmap object
 #' @export
 plot_weekly_heatmap <- function(data, method = "neural_recovery_score") {
-  # Define weekday order (Monday to Sunday)
-  weekday_order <- c(
-    "Montag",
-    "Dienstag",
-    "Mittwoch",
-    "Donnerstag",
-    "Freitag",
-    "Samstag",
-    "Sonntag"
+  # Numeric weekday key, Monday = 1 to Sunday = 7, with fixed English labels
+  iso_weekday <- function(dates) {
+    wday <- as.POSIXlt(as.Date(dates))$wday # 0 = Sunday, 6 = Saturday
+    ((wday + 6) %% 7) + 1
+  }
+  weekday_levels <- c(
+    "Mon",
+    "Tue",
+    "Wed",
+    "Thu",
+    "Fri",
+    "Sat",
+    "Sun"
   )
+
+  # ISO week key: ISO week-year (%G) combined with ISO week number (%V)
+  iso_week_key <- function(dates) {
+    format(as.Date(dates), "%G-W%V")
+  }
 
   # Calculate daily status
   if (method == "rmssd_change") {
     data <- data %>%
       calculate_moving_averages() %>%
       mutate(
-        day_of_week = weekdays(as.Date(date)),
-        day_of_week = factor(day_of_week, levels = weekday_order),
-        week = format(as.Date(date), "%Y-W%V"),
+        day_of_week = factor(
+          weekday_levels[iso_weekday(date)],
+          levels = weekday_levels
+        ),
+        week = iso_week_key(date),
         status = case_when(
+          is.na(rmssd_change) ~ "No data",
           rmssd_change > 5 ~ "Fresh",
           rmssd_change >= -5 ~ "Normal",
           rmssd_change >= -10 ~ "Caution",
@@ -312,25 +328,34 @@ plot_weekly_heatmap <- function(data, method = "neural_recovery_score") {
         ),
         status = factor(
           status,
-          levels = c("Warning", "Caution", "Normal", "Fresh")
+          levels = c("No data", "Warning", "Caution", "Normal", "Fresh")
         )
       )
   } else if (method == "neural_recovery_score") {
     data <- data %>%
       calculate_neural_recovery() %>%
       mutate(
-        day_of_week = weekdays(as.Date(date)),
-        day_of_week = factor(day_of_week, levels = weekday_order),
-        week = format(as.Date(date), "%Y-W%V"),
+        day_of_week = factor(
+          weekday_levels[iso_weekday(date)],
+          levels = weekday_levels
+        ),
+        week = iso_week_key(date),
         status = case_when(
+          is.na(neural_recovery_score) ~ "No data",
           neural_recovery_score >= 80 ~ "Fresh",
           neural_recovery_score >= 70 ~ "Good",
           neural_recovery_score >= 40 ~ "Reduced",
           TRUE ~ "Low"
         ),
-        status = factor(status, levels = c("Low", "Reduced", "Good", "Fresh"))
+        status = factor(
+          status,
+          levels = c("No data", "Low", "Reduced", "Good", "Fresh")
+        )
       )
   }
+
+  # Order week keys chronologically
+  data$week <- factor(data$week, levels = sort(unique(data$week)))
 
   # Create heatmap with ordered factors
   ggplot(data, aes(x = day_of_week, y = week)) +
@@ -343,7 +368,8 @@ plot_weekly_heatmap <- function(data, method = "neural_recovery_score") {
         "Reduced" = "#F0E442",
         "Caution" = "#F0E442",
         "Low" = "#D55E00",
-        "Warning" = "#D55E00"
+        "Warning" = "#D55E00",
+        "No data" = "grey85"
       ),
       guide = guide_legend(reverse = TRUE)
     ) +

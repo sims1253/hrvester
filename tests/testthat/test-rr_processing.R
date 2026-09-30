@@ -2,7 +2,8 @@ check_phase_transitions <- function(
   result,
   laying_time,
   transition_time,
-  duration
+  duration,
+  centered = TRUE
 ) {
   # 1. Check for correct order of phases (laying -> transition -> standing)
   phases <- unique(result$phase)
@@ -12,40 +13,40 @@ check_phase_transitions <- function(
     info = "Phases are not in the correct order"
   )
 
-  # 2. Find transition points (where the phase changes)
-  transition_points <- which(diff(as.numeric(factor(result$phase))) != 0)
-
-  # 3. Check approximate locations of transitions, with tolerance
-  if (length(transition_points) >= 1) {
-    # Laying -> Transition
-    expected_laying_end <- laying_time / (duration / nrow(result))
-    expect_equal(
-      transition_points[1],
-      expected_laying_end,
-      tolerance = 1,
-      info = "Laying -> Transition transition point is incorrect"
-    )
+  # 2. Phase boundaries in elapsed seconds (interval-end convention)
+  laying_end <- if (centered) {
+    laying_time - transition_time / 2
+  } else {
+    laying_time
+  }
+  transition_end <- if (centered) {
+    laying_time + transition_time / 2
+  } else {
+    laying_time + transition_time
   }
 
-  if (length(transition_points) >= 2) {
-    # Transition -> Standing
-    expected_transition_end <- (laying_time + transition_time) /
-      (duration / nrow(result))
-    expect_equal(
-      transition_points[2],
-      expected_transition_end,
-      tolerance = 1,
-      info = "Transition -> Standing transition point is incorrect"
-    )
-  }
-
-  if (length(transition_points) < 2 || length(transition_points) > 2) {
-    warning("Unexpected number of transition points") # Handles the edge cases
-  }
+  # 3. Every beat is in the phase its interval-end time implies
+  expect_true(
+    all(result$phase[result$elapsed_time <= laying_end] == "laying"),
+    info = "Beats at or before the laying boundary must be laying"
+  )
+  expect_true(
+    all(
+      result$phase[
+        result$elapsed_time > laying_end & result$elapsed_time <= transition_end
+      ] == "transition"
+    ),
+    info = "Beats within the transition band must be transition"
+  )
+  expect_true(
+    all(result$phase[result$elapsed_time > transition_end] == "standing"),
+    info = "Beats after the transition band must be standing"
+  )
 }
 
 test_that("split_rr_phases splits data correctly (valid inputs)", {
-  rr_intervals <- data.frame(time = 1:100)
+  # 100 one-second beats: elapsed time is 1, 2, ..., 100 s
+  rr_intervals <- data.frame(time = rep(1, 100))
   session_info <- list(duration = 100)
   laying_time <- 30
   transition_time <- 20
@@ -56,17 +57,74 @@ test_that("split_rr_phases splits data correctly (valid inputs)", {
     session_info,
     laying_time,
     transition_time,
-    standing_time
+    standing_time,
+    time_unit = "seconds"
   )
 
   expect_true(is.data.frame(result))
   expect_true("phase" %in% colnames(result))
+  # Independent expectations for 1 s beats: centered boundaries at 20 s and
+  # 40 s elapsed time
+  expect_equal(sum(result$phase == "laying"), 20)
+  expect_equal(sum(result$phase == "transition"), 20)
+  expect_equal(sum(result$phase == "standing"), 60)
   check_phase_transitions(
     result,
     laying_time,
     transition_time,
     session_info$duration
   )
+})
+
+test_that("split_rr_phases uses beat times, not uniform spacing (R01)", {
+  # 60 s at 60 bpm, then 60 s at 120 bpm: heart rate changes between phases
+  rr <- data.frame(time = c(rep(1000, 60), rep(500, 120)))
+
+  result <- split_rr_phases(
+    rr,
+    list(duration = 120),
+    laying_time = 60,
+    transition_time = 0,
+    standing_time = 60,
+    centered_transition = FALSE
+  )
+
+  # The 60th interval ends at 60 s and belongs to laying; the remaining 120
+  # faster intervals are standing. Uniform stretching would misassign 30.
+  expect_equal(sum(result$phase == "laying"), 60)
+  expect_equal(sum(result$phase == "standing"), 120)
+  expect_equal(result$elapsed_time[60], 60)
+  expect_equal(result$elapsed_time[61], 60.5)
+})
+
+test_that("split_rr_phases converts milliseconds to seconds by default", {
+  result <- split_rr_phases(
+    data.frame(time = c(1000, 1000, 500)),
+    list(duration = 2.5),
+    laying_time = 2,
+    transition_time = 0,
+    standing_time = 0.5,
+    centered_transition = FALSE
+  )
+  expect_equal(result$elapsed_time, c(1, 2, 2.5))
+  expect_equal(result$phase, c("laying", "laying", "standing"))
+})
+
+test_that("split_rr_phases warns on session duration mismatch", {
+  # Beats only sum to 50 s although the session claims 100 s
+  expect_warning(
+    result <- split_rr_phases(
+      data.frame(time = rep(1, 50)),
+      list(duration = 100),
+      30,
+      20,
+      50,
+      time_unit = "seconds"
+    ),
+    "deviates from session_info\\$duration"
+  )
+  # The beat-derived timeline is used regardless
+  expect_equal(result$elapsed_time[50], 50)
 })
 
 test_that("split_rr_phases handles empty rr_intervals", {
@@ -130,11 +188,12 @@ test_that("split_rr_phases throws errors for invalid inputs", {
     names(invalid_times),
     ~ {
       args <- list(
-        rr_intervals = data.frame(time = 1:10),
+        rr_intervals = data.frame(time = rep(1, 10)),
         session_info = list(duration = 100),
         laying_time = 30,
         transition_time = 20,
-        standing_time = 50
+        standing_time = 50,
+        time_unit = "seconds"
       )
       outer_x <- .x
       purrr::walk(
@@ -148,60 +207,101 @@ test_that("split_rr_phases throws errors for invalid inputs", {
   )
 
   expect_error(
-    split_rr_phases(data.frame(time = 1:10), list(duration = 100), 50, 20, 51),
-    pattern = "The sum of laying_time.*cannot exceed.*session_info.duration",
-    regexp = TRUE
+    split_rr_phases(
+      data.frame(time = rep(1, 10)),
+      list(duration = 100),
+      50,
+      20,
+      51,
+      time_unit = "seconds"
+    ),
+    "cannot exceed"
   )
 
   expect_error(
     split_rr_phases(
-      data.frame(time = 1:10),
+      data.frame(time = rep(1, 10)),
       list(duration = 100),
       50,
       20,
       10,
-      centered_transition = FALSE
+      centered_transition = FALSE,
+      time_unit = "seconds"
     ),
     "transition_time must not exceed the standing_time."
+  )
+
+  expect_error(
+    split_rr_phases(
+      data.frame(time = rep(1, 10)),
+      list(duration = 100),
+      30,
+      20,
+      50,
+      time_unit = "hours"
+    ),
+    "'arg' should be one of"
   )
 })
 
 test_that("split_rr_phases handles edge cases", {
-  rr_intervals <- data.frame(time = 1:100)
+  rr_intervals <- data.frame(time = rep(1, 100))
   session_info <- list(duration = 100)
 
   # laying = duration
-  result2 <- split_rr_phases(rr_intervals, session_info, 100, 0, 0)
+  result2 <- split_rr_phases(
+    rr_intervals,
+    session_info,
+    100,
+    0,
+    0,
+    time_unit = "seconds"
+  )
   expect_true(all(result2$phase == "laying"))
 
   # laying/transition = 0
-  result3 <- split_rr_phases(rr_intervals, session_info, 0, 0, 50)
+  result3 <- split_rr_phases(
+    rr_intervals,
+    session_info,
+    0,
+    0,
+    50,
+    time_unit = "seconds"
+  )
   expect_true(all(result3$phase == "standing"))
 })
 
 
-test_that("split_rr_phases handles different row counts and non-integer durations", {
-  rr_intervals <- data.frame(time = 1:50)
-  session_info <- list(duration = 73.5) # Non Integer Duration
-  laying_time <- 30
-  transition_time <- 20
-  standing_time <- 43.5
+test_that("split_rr_phases handles non-centered transitions and exact boundaries", {
+  # Non-centered: transition taken from the laying phase only
   result <- split_rr_phases(
-    rr_intervals,
-    session_info,
-    laying_time,
-    transition_time,
-    standing_time
+    data.frame(time = rep(1, 100)),
+    list(duration = 100),
+    laying_time = 30,
+    transition_time = 20,
+    standing_time = 50,
+    centered_transition = FALSE,
+    time_unit = "seconds"
   )
-  expect_true(nrow(result) == 50)
-  expect_equal(result$elapsed_time[1], 73.5 / 50) # Check first elapsed time
-  expect_equal(result$elapsed_time[50], 73.5) # last time is the total duration
-  check_phase_transitions(
-    result,
-    laying_time,
-    transition_time,
-    session_info$duration
-  ) # Check transitions
+  expect_equal(sum(result$phase == "laying"), 30)
+  expect_equal(sum(result$phase == "transition"), 20)
+  expect_equal(sum(result$phase == "standing"), 50)
+})
+
+test_that("split_rr_phases does not alter the beat intervals themselves", {
+  # Phase assignment must not stretch or redistribute interval values;
+  # elapsed time is exactly the cumulative sum of the input intervals
+  times <- c(rep(1000, 30), 1500, rep(1000, 29))
+  p <- split_rr_phases(
+    data.frame(time = times),
+    list(duration = 60.5),
+    laying_time = 30,
+    transition_time = 0,
+    standing_time = 30.5,
+    centered_transition = FALSE
+  )
+  expect_equal(p$time, times)
+  expect_equal(p$elapsed_time, cumsum(times) / 1000)
 })
 
 test_that("validate_rr throws errors for invalid inputs", {

@@ -65,3 +65,11 @@ A tibble containing HRV metrics for all processed FIT files
 Processes multiple FIT files from a specified directory, utilizing caching to
 avoid reprocessing unchanged files. This function efficiently processes new or updated files in a directory, leveraging a cache to skip already processed files.
 }
+\details{
+A cached entry is reused only when the package version, the effective
+analysis configuration (protocol windows, filtering thresholds, correction
+method, quality threshold, sport filter) and the source file contents all
+match the current run. Overwritten files and configuration changes are
+therefore reprocessed automatically; entries lacking provenance
+information (legacy caches) are reprocessed as well.
+}

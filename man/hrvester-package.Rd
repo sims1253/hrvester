@@ -30,5 +30,10 @@ Useful links:
 \author{
 \strong{Maintainer}: Maximilian Scholz \email{dev.scholz@mailbox.org}
 
+Authors:
+\itemize{
+  \item Maximilian Scholz \email{dev.scholz@mailbox.org}
+}
+
 }
 \keyword{internal}

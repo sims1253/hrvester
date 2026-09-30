@@ -31,9 +31,13 @@ Default is TRUE}
 \value{
 A data frame containing the processed RR data with the following structure:
 \itemize{
-\item \code{time}: Numeric vector of RR intervals (corrected if method != "none")
-\item Additional columns may be present depending on correction method
-\item Attributes include correction metadata for diagnostic purposes
+\item \code{time}: Numeric vector of RR intervals in milliseconds (corrected if
+method != "none")
+\item Attributes include correction metadata for diagnostic purposes, plus
+\code{raw_rr} (the series before physiological correction, after device
+placeholder removal) and \code{raw_artifact_indices} (indices into \code{raw_rr}
+of detected physiological artifacts) so quality assessment can use the
+original artifact burden
 }
 }
 \description{
@@ -45,7 +49,7 @@ data extraction with research-validated preprocessing methods.
 The function implements a comprehensive preprocessing pipeline:
 \enumerate{
 \item \strong{Input Validation:} Validates the \code{fit_object} using \code{\link[=validate_fit_object]{validate_fit_object()}}
-\item \strong{HRV Data Extraction:} Extracts raw HRV data using \code{\link[FITfileR:FitFile-accessors]{FITfileR::hrv()}}
+\item \strong{HRV Data Extraction:} Extracts raw HRV data using \code{\link[FITfileR:hrv]{FITfileR::hrv()}}
 \item \strong{Artifact Detection:} Applies Kubios-style adaptive threshold detection
 \item \strong{Artifact Correction:} Applies selected correction method if artifacts found
 \item \strong{Return Structured Output:} Returns corrected data with metadata
@@ -55,7 +59,7 @@ The function implements a comprehensive preprocessing pipeline:
 \itemize{
 \item \code{"linear"}: Linear interpolation (lowest RMSSD bias, recommended default)
 \item \code{"cubic"}: Cubic spline interpolation (Kubios-style, good automation)
-\item \code{"lipponen"}: Lipponen-Tarvainen algorithm (state-of-the-art, <2\% error)
+\item \code{"lipponen"}: Lipponen-Tarvainen algorithm (robust beat classification)
 \item \code{"none"}: No correction applied (returns raw extracted data)
 }
 

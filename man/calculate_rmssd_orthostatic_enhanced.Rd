@@ -12,6 +12,7 @@ calculate_rmssd_orthostatic_enhanced(
   initial_stabilization_time = 60,
   min_segment_length = 30,
   min_segment_beats = 30,
+  time_unit = c("seconds", "milliseconds"),
   ...
 )
 }
@@ -37,6 +38,11 @@ at the beginning of the lying phase (default: 60).}
 \item{min_segment_beats}{Integer, minimum number of beats in a segment
 (default: 30)}
 
+\item{time_unit}{Character. The unit of the \code{time} column: \code{"seconds"}
+(the default) or \code{"milliseconds"} (the unit returned by
+\code{\link[=extract_rr_data]{extract_rr_data()}}). All phase and exclusion boundaries are defined in
+seconds regardless of the input unit.}
+
 \item{...}{other parameters passed to \code{detect_hrv_artefacts}}
 }
 \value{
@@ -45,7 +51,7 @@ A list containing:
 \item \code{rmssd_lying}: RMSSD for the lying phase (or NA).
 \item \code{rmssd_standing}: RMSSD for the standing phase (or NA).
 \item \code{rmssd_values}: A numeric vector of all segment RMSSD values.
-\item \code{segment_lengths}: A numeric vector of segment lengths.
+\item \code{segment_lengths}: A numeric vector of segment lengths (in seconds).
 \item \code{segment_beat_counts}: An integer vector of segment beat counts.
 \item \code{aggregated_rmssd}: Aggregated RMSSD (mean of a ll segments).
 \item \code{n_segments}: Number of segments

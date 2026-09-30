@@ -13,10 +13,11 @@ correct_hrv_artefacts_lipponen(data)
 \value{
 A \code{dplyr::tibble} with the following columns:
 \itemize{
-\item \code{time}: The \emph{corrected} RR intervals (in milliseconds).
+\item \code{time}: The \emph{corrected} RR intervals (same unit as the input).
 \item \code{classification}:  The updated classification column. Intervals that
-were corrected by interpolation will have the classification
-\code{"interpolated"}. Inserted "missed" beats will have the classification
+were corrected by interpolation keep their original classification and
+are flagged as \code{"interpolated"} in the \code{correction} column. Inserted
+"missed" beats will have the classification
 \code{"missed"}. Removed beats will not be present.
 }
 }
@@ -27,12 +28,17 @@ correction, including:
 }
 \details{
 \itemize{
+\item \strong{Removal:} Extra beats are removed first and their interval is
+merged back into the preceding partner interval (the classifier flags
+the second of the two short intervals a false beat produces), so the
+total elapsed time of the recording is preserved and the false beat
+never anchors the interpolation below.
 \item \strong{Interpolation:} Ectopic, long, and short beats are corrected by
 replacing the identified intervals with values obtained via cubic spline
 interpolation.
-\item \strong{Removal:} Extra beats are removed.
 \item \strong{Insertion:}  Rows are inserted for missed beats, with the time
-value set to half the duration of the long interval.
+value set to half the duration of the long interval, preserving the
+total elapsed time.
 }
 }
 \seealso{

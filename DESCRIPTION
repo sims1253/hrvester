@@ -1,8 +1,8 @@
 Package: hrvester
 Type: Package
 Title: hrvester: Heart Rate Variability Analysis from FIT Files
-Version: 0.4.0
-Date: 2025-02-10
+Version: 0.5.0
+Date: 2026-09-29
 Authors@R:
     person("Maximilian", "Scholz", email = "dev.scholz@mailbox.org",
            role = c("aut", "cre"))
@@ -32,7 +32,6 @@ Suggests:
     purrr
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
 NeedsCompilation: no
 URL: https://github.com/sims1253/hrvester, https://sims1253.github.io/hrvester/
 BugReports: https://github.com/sims1253/hrvester/issues
@@ -46,3 +45,4 @@ Description: An R package for analyzing Heart Rate Variability (HRV) data from .
   training recommendations. Includes features for handling multiple files, caching
   results with quality metrics, and producing summary reports.
 Config/testthat/parallel: true
+Config/roxygen2/version: 8.0.0

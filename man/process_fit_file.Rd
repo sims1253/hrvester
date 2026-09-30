@@ -18,7 +18,8 @@ process_fit_file(
   warmup = 70,
   sport_name = "OST",
   min_quality_threshold = 0,
-  correction_method = "linear"
+  correction_method = "linear",
+  config_id = NULL
 )
 }
 \arguments{
@@ -45,7 +46,8 @@ is only taken from the laying phase.}
 \item{centered_window}{Logical indicating whether the moving window should
 be centered. Defaults to FALSE.}
 
-\item{warmup}{Time in seconds from the start that should be discarded}
+\item{warmup}{Time in seconds from the start that should be discarded from
+both HR and RR analyses}
 
 \item{sport_name}{Name of the sport for the fit file. Used as a filter.}
 
@@ -54,6 +56,11 @@ Data below this quality threshold will be discarded. Default is 0.0 (no filterin
 
 \item{correction_method}{Character string specifying the artifact correction
 method. Options are: "linear", "cubic", "lipponen", "none". Default is "linear".}
+
+\item{config_id}{Cache provenance. Digest of the effective analysis
+configuration, computed from the other arguments when NULL (the default).
+Passed by \code{\link[=process_fit_directory]{process_fit_directory()}} so cached entries can be invalidated
+when the analysis configuration changes.}
 }
 \value{
 Tibble containing HRV metrics
@@ -61,4 +68,15 @@ Tibble containing HRV metrics
 \description{
 Calculates HRV metrics from a FIT file, integrating data extraction,
 RR interval processing, and HRV calculation with error handling.
+
+One elapsed-time protocol (in seconds) drives both HR and RR analyses:
+the first \code{warmup} seconds are discarded; the laying phase ends at
+\code{laying_time}; the transition band is centred on \code{laying_time} when
+\code{centered_transition = TRUE} and the standing phase starts at
+\code{laying_time + transition_time / 2} (or \code{laying_time + transition_time}
+otherwise). HR windows are selected by record timestamp, so recordings
+that are not sampled at exactly 1 Hz are handled correctly.
+
+Phase quality assessment uses the raw (pre-correction) artifact burden so
+that correction cannot make a poor recording appear clean.
 }
