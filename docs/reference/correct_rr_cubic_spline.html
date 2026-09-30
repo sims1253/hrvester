@@ -19,7 +19,7 @@ automation with accuracy."><meta property="og:image" content="/logo.png"><!-- ma
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -85,7 +85,8 @@ Default is TRUE</p></dd>
 
 <dt id="arg-max-correction-rate">max_correction_rate<a class="anchor" aria-label="anchor" href="#arg-max-correction-rate"></a></dt>
 <dd><p>Maximum percentage of beats that can be corrected.
-Default is 5% to avoid over-smoothing</p></dd>
+Must be a single finite number between 0 and 100. Default is 5% to avoid
+over-smoothing. A value of 0 disables correction entirely.</p></dd>
 
 </dl></div>
     <div id="value">
@@ -96,11 +97,15 @@ Default is 5% to avoid over-smoothing</p></dd>
 </ul></div>
     <div id="details">
     <h2>Details</h2>
-    <p>This function implements the Kubios-style cubic spline correction:</p><ul><li><p>Uses HR-adaptive thresholds (20-30% or 0.20-0.30s ranges)</p></li>
-<li><p>Limits corrections to &lt;5% of beats to avoid over-smoothing</p></li>
+    <p>This function implements the Kubios-style cubic spline correction:</p><ul><li><p>Uses HR-adaptive thresholds (20-30% or 200-300 ms deviation ranges)</p></li>
+<li><p>Limits corrections to at most <code>max_correction_rate</code> percent of beats</p></li>
 <li><p>Applies cubic spline interpolation using R's spline() function</p></li>
 <li><p>Automatically detects artifacts based on percentage deviation</p></li>
-</ul><p>The method balances automated detection with preservation of physiological
+</ul><p>In HR-adaptive mode the accepted range is the wider (less restrictive) of
+the percentage band around the median RR interval and the time-based band
+<code>median_rr - 200</code> to <code>median_rr + 300</code> ms. Both bounds are therefore
+relative to the median RR interval.</p>
+<p>The method balances automated detection with preservation of physiological
 variability, making it widely adopted in HRV research.</p>
     </div>
     <div id="references">

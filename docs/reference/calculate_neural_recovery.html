@@ -23,7 +23,7 @@ Heart rate recovery (recovery capacity)
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -90,8 +90,12 @@ Must be a positive integer.</p></dd>
     <p>Dataframe with added columns:</p><ul><li><p>rmssd_score (numeric): Score based on RMSSD ratio (0-40 points)</p></li>
 <li><p>ortho_score (numeric): Score based on orthostatic response (0-30 points)</p></li>
 <li><p>hrr_score (numeric): Score based on heart rate recovery (0-30 points)</p></li>
-<li><p>neural_recovery_score (numeric): Combined total score (0-100)</p></li>
-<li><p>recovery_status (character): Classification based on total score</p></li>
+<li><p>neural_recovery_score (numeric): Combined total score (0-100);
+NA when any component cannot be computed (for example, no usable
+moving-average baseline yet, or a missing measurement)</p></li>
+<li><p>recovery_status (character): Classification based on total score;
+"Insufficient data" when the score is NA, so unknown recovery is
+never presented as poor recovery</p></li>
 </ul></div>
 
   </div>

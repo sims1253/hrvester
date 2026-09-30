@@ -18,7 +18,7 @@ recommendations."><meta property="og:image" content="/logo.png"><!-- mathjax -->
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -64,9 +64,12 @@ recommendations.</p>
 
 <dl><dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>A dataframe containing HRV metrics for at least 8 consecutive
-days (current day plus 7-day baseline). Should include:</p><ul><li><p>date (Date): Measurement dates</p></li>
+days (current day plus 7-day baseline). Should include:</p><ul><li><p>date (Date or character): Measurement dates in ISO format;
+character dates (as produced by the processing pipeline and cache)
+are accepted and normalized</p></li>
 <li><p>laying_rmssd (numeric): RMSSD during laying position</p></li>
-<li><p>laying_resting_hr (numeric): Resting heart rate</p></li>
+<li><p>laying_resting_hr (numeric): Resting heart rate; fractional
+values are supported</p></li>
 <li><p>orthostatic_rise (numeric): Orthostatic response</p></li>
 </ul></dd>
 
@@ -79,6 +82,14 @@ days (current day plus 7-day baseline). Should include:</p><ul><li><p>date (Date
 <li><p>Warning flags if present</p></li>
 <li><p>7-day trend analysis for RMSSD and heart rate</p></li>
 </ul></div>
+    <div id="details">
+    <h2>Details</h2>
+    <p>When several measurements share the latest date, the first row
+of that date (in input order) is reported. At least two usable baseline
+days within the seven days before the current day are required (the
+7-day trend needs two points); the baseline does not need to be
+complete.</p>
+    </div>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

@@ -19,7 +19,7 @@ data extraction with research-validated preprocessing methods."><meta property="
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -97,9 +97,13 @@ Default is TRUE</p></dd>
 </dl></div>
     <div id="value">
     <h2>Value</h2>
-    <p>A data frame containing the processed RR data with the following structure:</p><ul><li><p><code>time</code>: Numeric vector of RR intervals (corrected if method != "none")</p></li>
-<li><p>Additional columns may be present depending on correction method</p></li>
-<li><p>Attributes include correction metadata for diagnostic purposes</p></li>
+    <p>A data frame containing the processed RR data with the following structure:</p><ul><li><p><code>time</code>: Numeric vector of RR intervals in milliseconds (corrected if
+method != "none")</p></li>
+<li><p>Attributes include correction metadata for diagnostic purposes, plus
+<code>raw_rr</code> (the series before physiological correction, after device
+placeholder removal) and <code>raw_artifact_indices</code> (indices into <code>raw_rr</code>
+of detected physiological artifacts) so quality assessment can use the
+original artifact burden</p></li>
 </ul></div>
     <div id="details">
     <h2>Details</h2>
@@ -110,7 +114,7 @@ Default is TRUE</p></dd>
 <li><p><strong>Return Structured Output:</strong> Returns corrected data with metadata</p></li>
 </ol><p><strong>Correction Methods:</strong></p><ul><li><p><code>"linear"</code>: Linear interpolation (lowest RMSSD bias, recommended default)</p></li>
 <li><p><code>"cubic"</code>: Cubic spline interpolation (Kubios-style, good automation)</p></li>
-<li><p><code>"lipponen"</code>: Lipponen-Tarvainen algorithm (state-of-the-art, &lt;2% error)</p></li>
+<li><p><code>"lipponen"</code>: Lipponen-Tarvainen algorithm (robust beat classification)</p></li>
 <li><p><code>"none"</code>: No correction applied (returns raw extracted data)</p></li>
 </ul><p><strong>Artifact Detection:</strong>
 Uses research-validated Kubios-style time-varying thresholds with dRR series

@@ -19,7 +19,7 @@ strength training."><meta property="og:image" content="/logo.png"><!-- mathjax -
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -82,7 +82,10 @@ case-insensitive)</p></dd>
 <li><p>bjj_specific (character): BJJ-specific recommendations
 (if applicable)</p></li>
 <li><p>score (numeric): The original neural recovery score</p></li>
-</ul></div>
+</ul><p>An <code>NA</code> score (insufficient data) returns an explicit
+"Insufficient data" status without a training prescription instead of
+an error.</p>
+    </div>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

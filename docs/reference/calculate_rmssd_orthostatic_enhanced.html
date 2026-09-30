@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -61,6 +61,7 @@
 <span>  initial_stabilization_time <span class="op">=</span> <span class="fl">60</span>,</span>
 <span>  min_segment_length <span class="op">=</span> <span class="fl">30</span>,</span>
 <span>  min_segment_beats <span class="op">=</span> <span class="fl">30</span>,</span>
+<span>  time_unit <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"seconds"</span>, <span class="st">"milliseconds"</span><span class="op">)</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -104,6 +105,13 @@ at the beginning of the lying phase (default: 60).</p></dd>
 (default: 30)</p></dd>
 
 
+<dt id="arg-time-unit">time_unit<a class="anchor" aria-label="anchor" href="#arg-time-unit"></a></dt>
+<dd><p>Character. The unit of the <code>time</code> column: <code>"seconds"</code>
+(the default) or <code>"milliseconds"</code> (the unit returned by
+<code><a href="extract_rr_data.html">extract_rr_data()</a></code>). All phase and exclusion boundaries are defined in
+seconds regardless of the input unit.</p></dd>
+
+
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>other parameters passed to <code>detect_hrv_artefacts</code></p></dd>
 
@@ -113,7 +121,7 @@ at the beginning of the lying phase (default: 60).</p></dd>
     <p>A list containing:</p><ul><li><p><code>rmssd_lying</code>: RMSSD for the lying phase (or NA).</p></li>
 <li><p><code>rmssd_standing</code>: RMSSD for the standing phase (or NA).</p></li>
 <li><p><code>rmssd_values</code>: A numeric vector of all segment RMSSD values.</p></li>
-<li><p><code>segment_lengths</code>: A numeric vector of segment lengths.</p></li>
+<li><p><code>segment_lengths</code>: A numeric vector of segment lengths (in seconds).</p></li>
 <li><p><code>segment_beat_counts</code>: An integer vector of segment beat counts.</p></li>
 <li><p><code>aggregated_rmssd</code>: Aggregated RMSSD (mean of a ll segments).</p></li>
 <li><p><code>n_segments</code>: Number of segments</p></li>

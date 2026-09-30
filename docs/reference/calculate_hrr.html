@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -53,7 +53,7 @@
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">calculate_hrr</span><span class="op">(</span><span class="va">standing_hr</span>, <span class="va">baseline_hr</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">calculate_hrr</span><span class="op">(</span><span class="va">standing_hr</span>, <span class="va">baseline_hr</span>, times <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -61,11 +61,21 @@
 
 
 <dl><dt id="arg-standing-hr">standing_hr<a class="anchor" aria-label="anchor" href="#arg-standing-hr"></a></dt>
-<dd><p>Vector of heart rate values after standing</p></dd>
+<dd><p>Vector of heart rate values after standing. Without
+<code>times</code>, values are interpreted as one-per-second samples of the first
+60 seconds after standing. With <code>times</code>, values may be irregularly
+sampled and are selected by elapsed time.</p></dd>
 
 
 <dt id="arg-baseline-hr">baseline_hr<a class="anchor" aria-label="anchor" href="#arg-baseline-hr"></a></dt>
 <dd><p>Resting heart rate before standing</p></dd>
+
+
+<dt id="arg-times">times<a class="anchor" aria-label="anchor" href="#arg-times"></a></dt>
+<dd><p>Optional numeric vector of elapsed times (in seconds, from
+the moment of standing) matching <code>standing_hr</code>. When supplied, the peak
+is taken over the first 20 seconds and the 60-second value is the last
+sample within 60 seconds, both by timestamp rather than by position.</p></dd>
 
 </dl></div>
     <div id="value">

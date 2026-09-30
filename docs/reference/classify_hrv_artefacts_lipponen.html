@@ -20,7 +20,7 @@ ectopic beats in RR interval time series data."><meta property="og:image" conten
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -74,7 +74,9 @@ ectopic beats in RR interval time series data.</p>
 
 <dl><dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>A <code><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">dplyr::tibble</a></code> with at least one column:</p><ul><li><p><code>time</code>: A numeric vector representing RR intervals (time since the last
-beat) in seconds.</p></li>
+beat) in any consistent unit; the package pipeline uses milliseconds.
+The algorithm only relies on relative differences, so it is
+unit-invariant.</p></li>
 </ul></dd>
 
 
@@ -97,7 +99,7 @@ calculation.  Defaults to 5.2 as suggested in the paper.</p></dd>
 </dl></div>
     <div id="value">
     <h2>Value</h2>
-    <p>A <code><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">dplyr::tibble</a></code> with the following columns:</p><ul><li><p><code>time</code>: The original RR intervals (in seconds).</p></li>
+    <p>A <code><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">dplyr::tibble</a></code> with the following columns:</p><ul><li><p><code>time</code>: The original RR intervals (same unit as the input).</p></li>
 <li><p><code>classification</code>: A character vector indicating the classification of each
 RR interval.  (Same possible values as before)</p></li>
 </ul></div>

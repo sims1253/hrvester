@@ -18,7 +18,7 @@ avoid reprocessing unchanged files. This function efficiently processes new or u
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -148,6 +148,15 @@ method. Options are: "linear", "cubic", "lipponen", "none". Default is "linear".
     <div id="value">
     <h2>Value</h2>
     <p>A tibble containing HRV metrics for all processed FIT files</p>
+    </div>
+    <div id="details">
+    <h2>Details</h2>
+    <p>A cached entry is reused only when the package version, the effective
+analysis configuration (protocol windows, filtering thresholds, correction
+method, quality threshold, sport filter) and the source file contents all
+match the current run. Overwritten files and configuration changes are
+therefore reprocessed automatically; entries lacking provenance
+information (legacy caches) are reprocessed as well.</p>
     </div>
 
   </div>

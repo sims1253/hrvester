@@ -20,7 +20,7 @@ HRV data quality assessment."><meta property="og:image" content="/logo.png"><!--
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -98,7 +98,10 @@ HRV data quality assessment.</p>
 <li><p>Data completeness percentage</p></li>
 <li><p>HR stability (lower variability = better for some contexts)</p></li>
 <li><p>Measurement duration adequacy (minimum 5 minutes recommended)</p></li>
-</ul></div>
+</ul><p>An empty input vector, or one containing no finite values, is not
+assessable: the function returns grade <code>"F"</code> with <code>NA</code> quality scores so
+that the absence of data can never be mistaken for excellent quality.</p>
+    </div>
     <div id="references">
     <h2>References</h2>
     <p>Quality thresholds based on HRV research standards and clinical guidelines

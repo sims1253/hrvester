@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -47,6 +47,60 @@
       <small>Source: <a href="https://github.com/sims1253/hrvester/blob/master/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="0.5.0" id="hrvester-050">hrvester 0.5.0<a class="anchor" aria-label="anchor" href="#hrvester-050"></a></h2>
+<p>This release fixes numerical and data-provenance defects identified in a full source review of the processing pipeline, and tightens the unit and protocol contracts. Results computed with earlier versions may change where the old behavior was incorrect.</p>
+<div class="section level3">
+<h3 id="phase-timing-and-protocol-0-5-0">Phase timing and protocol<a class="anchor" aria-label="anchor" href="#phase-timing-and-protocol-0-5-0"></a></h3>
+<ul><li>
+<code><a href="../reference/split_rr_phases.html">split_rr_phases()</a></code> derives <code>elapsed_time</code> from the actual beat intervals (cumulative sum) instead of stretching beats uniformly to the session duration, so beats can no longer land in the wrong phase when heart rate changes between laying and standing. A <code>time_unit</code> argument (<code>"milliseconds"</code>, the pipeline default, or <code>"seconds"</code>) documents the conversion; a warning is issued when beat time and session duration disagree by more than 5%.</li>
+<li>
+<code><a href="../reference/process_fit_file.html">process_fit_file()</a></code> applies one elapsed-time protocol (in seconds) to both HR and RR analyses. The <code>warmup</code> argument is now honored, HR windows are selected by record timestamp rather than fixed row numbers (irregular sampling is handled), and the 360-sample truncation in <code><a href="../reference/get_HR.html">get_HR()</a></code> was removed.</li>
+<li>Caller-supplied <code>window_size</code>, <code>threshold</code> and <code>centered_window</code> are now forwarded to every phase in <code><a href="../reference/process_fit_file.html">process_fit_file()</a></code> instead of being silently overridden by hard-coded per-phase values.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="correction-semantics-0-5-0">Correction semantics<a class="anchor" aria-label="anchor" href="#correction-semantics-0-5-0"></a></h3>
+<ul><li>
+<code><a href="../reference/correct_rr_cubic_spline.html">correct_rr_cubic_spline()</a></code> computes the adaptive lower threshold relative to the median RR interval (<code>median_rr - 200</code> ms) instead of treating 200 ms as an absolute RR value, so substantially shortened but plausible intervals are detected.</li>
+<li>A cubic correction budget of zero now disables correction entirely (previously <code>1:0</code> indexing still corrected one beat), and <code>max_correction_rate</code> is validated as a single finite percentage.</li>
+<li>
+<code><a href="../reference/correct_hrv_artefacts_lipponen.html">correct_hrv_artefacts_lipponen()</a></code> removes extra beats before interpolation and merges the flagged interval back into its preceding partner interval (the classifier flags the second of the two short intervals a false beat produces), and uses a zero-length-safe prefix when inserting missed beats, preserving the recording’s elapsed duration.</li>
+<li>
+<code><a href="../reference/calculate_hrv_rmssd.html">calculate_hrv_rmssd()</a></code> computes RMSSD from the successfully corrected beats (including interpolated ones) instead of dropping them.</li>
+<li>
+<code><a href="../reference/detect_rr_artifacts.html">detect_rr_artifacts()</a></code> centered windows exclude only the current index, not all neighbors with an equal value, so repeated or quantized RR values are no longer falsely flagged.</li>
+<li>
+<code><a href="../reference/correct_rr_lipponen_tarvainen.html">correct_rr_lipponen_tarvainen()</a></code> renames the <code>rmssd_error</code> diagnostic to <code>relative_rmssd_change</code> (it measures change from the uncorrected input, not accuracy), guards a zero reference RMSSD, and accuracy claims were removed from the documentation.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="quality-assessment-0-5-0">Quality assessment<a class="anchor" aria-label="anchor" href="#quality-assessment-0-5-0"></a></h3>
+<ul><li>Phase quality in <code><a href="../reference/process_fit_file.html">process_fit_file()</a></code> is computed from the raw (pre-correction) artifact burden carried through provenance attributes, so correction can no longer make a poor recording pass the quality gate. The correction metadata records the actual method and threshold used.</li>
+<li>
+<code><a href="../reference/calculate_rr_quality.html">calculate_rr_quality()</a></code> returns an explicit unassessable result (grade “F”, NA scores) for empty or wholly unusable series instead of grading them “A”.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="units-0-5-0">Units<a class="anchor" aria-label="anchor" href="#units-0-5-0"></a></h3>
+<ul><li>Milliseconds are documented as the canonical RR unit across the package. <code><a href="../reference/calculate_hrv.html">calculate_hrv()</a></code> input/output units now match, and <code><a href="../reference/calculate_rmssd_orthostatic_enhanced.html">calculate_rmssd_orthostatic_enhanced()</a></code> gained a <code>time_unit</code> argument and applies <code>transition_exclusion_time</code> for the first time (the transition window was previously labeled but never excluded). Segments are split on elapsed-time gaps so RMSSD is not computed across removed periods.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="caching-0-5-0">Caching<a class="anchor" aria-label="anchor" href="#caching-0-5-0"></a></h3>
+<ul><li>Cache entries carry a file-content digest and an analysis-configuration identity. Overwritten files, changed analysis arguments and package upgrades now invalidate the affected entries automatically; legacy caches without provenance are reprocessed. Entries for deleted files are kept.</li>
+<li>
+<code>load_cache()</code> installs its readr column specifications in the correct place, so all-NA result rows round-trip with their declared types instead of being rejected and wiped.</li>
+<li>The cache is written atomically (temporary file plus rename): a failed or interrupted write leaves the previous cache untouched.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="reports-plots-and-recovery-classification-0-5-0">Reports, plots and recovery classification<a class="anchor" aria-label="anchor" href="#reports-plots-and-recovery-classification-0-5-0"></a></h3>
+<ul><li>
+<code><a href="../reference/generate_daily_report.html">generate_daily_report()</a></code> accepts character dates and fractional resting heart rates from the pipeline, and requires a usable baseline day instead of relying on row counts alone.</li>
+<li>
+<code><a href="../reference/hrv_plot.html">hrv_plot()</a></code> consumes the actual RR time series returned by <code><a href="../reference/extract_rr_data.html">extract_rr_data()</a></code>; <code><a href="../reference/hrv_trend_plot.html">hrv_trend_plot()</a></code> no longer pivots character quality grades together with numeric metrics.</li>
+<li>
+<code><a href="../reference/calculate_neural_recovery.html">calculate_neural_recovery()</a></code> reports missing baselines and missing components as an explicit “Insufficient data” status instead of “Low”; <code><a href="../reference/training_recommendations.html">training_recommendations()</a></code> and <code><a href="../reference/analyze_readiness.html">analyze_readiness()</a></code> handle undefined scores explicitly.</li>
+<li>
+<code><a href="../reference/plot_weekly_heatmap.html">plot_weekly_heatmap()</a></code> uses locale-independent numeric weekday keys and ISO week-year (<code>%G-W%V</code>) week keys, so weekday tiles no longer vanish outside a German locale and dates around New Year stay grouped.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="page-header" data-toc-text="0.4.0" id="hrvester-040">hrvester 0.4.0<a class="anchor" aria-label="anchor" href="#hrvester-040"></a></h2>
 <div class="section level3">

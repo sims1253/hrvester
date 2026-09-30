@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -61,7 +61,8 @@
 
 
 <dl><dt id="arg-rr-intervals">rr_intervals<a class="anchor" aria-label="anchor" href="#arg-rr-intervals"></a></dt>
-<dd><p>Numeric vector of RR intervals in seconds</p></dd>
+<dd><p>Numeric vector of RR intervals in milliseconds, the
+canonical unit used throughout the package (see <code><a href="extract_rr_data.html">extract_rr_data()</a></code>)</p></dd>
 
 </dl></div>
     <div id="value">
@@ -73,7 +74,10 @@
 <dt>sdnn</dt>
 <dd><p>Standard Deviation of NN intervals (ms)</p></dd>
 
-</dl></div>
+
+</dl><p>The output is reported in the same unit as the input; both are
+milliseconds in the package pipeline.</p>
+    </div>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

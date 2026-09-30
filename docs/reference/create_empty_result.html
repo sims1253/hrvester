@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">hrvester</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.5.0</span>
       </span>
     </div>
 
@@ -53,7 +53,14 @@
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">create_empty_result</span><span class="op">(</span><span class="va">file_path</span>, <span class="va">session_date</span>, <span class="va">week</span>, <span class="va">time_of_day</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">create_empty_result</span><span class="op">(</span></span>
+<span>  <span class="va">file_path</span>,</span>
+<span>  <span class="va">session_date</span>,</span>
+<span>  <span class="va">week</span>,</span>
+<span>  <span class="va">time_of_day</span>,</span>
+<span>  file_digest <span class="op">=</span> <span class="cn">NA_character_</span>,</span>
+<span>  config_id <span class="op">=</span> <span class="cn">NA_character_</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -74,6 +81,14 @@
 
 <dt id="arg-time-of-day">time_of_day<a class="anchor" aria-label="anchor" href="#arg-time-of-day"></a></dt>
 <dd><p>Time of day</p></dd>
+
+
+<dt id="arg-file-digest">file_digest<a class="anchor" aria-label="anchor" href="#arg-file-digest"></a></dt>
+<dd><p>MD5 digest of the source file contents</p></dd>
+
+
+<dt id="arg-config-id">config_id<a class="anchor" aria-label="anchor" href="#arg-config-id"></a></dt>
+<dd><p>Analysis configuration identity</p></dd>
 
 </dl></div>
     <div id="value">
