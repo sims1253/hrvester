@@ -7,7 +7,9 @@
 #'
 #' @param data A `dplyr::tibble` with at least one column:
 #'   * `time`: A numeric vector representing RR intervals (time since the last
-#'     beat) in seconds.
+#'     beat) in any consistent unit; the package pipeline uses milliseconds.
+#'     The algorithm only relies on relative differences, so it is
+#'     unit-invariant.
 #' @param alpha A numeric value representing the scaling factor for threshold
 #'   calculation.  Defaults to 5.2 as suggested in the paper.
 #' @param c1 Constant for ectopic beat detection boundary. Defaults to 0.13.
@@ -15,7 +17,7 @@
 #' @param qd_window Window size for quartile deviation calculation. Defaults to 91.
 #'
 #' @return A `dplyr::tibble` with the following columns:
-#'   * `time`: The original RR intervals (in seconds).
+#'   * `time`: The original RR intervals (same unit as the input).
 #'   * `classification`: A character vector indicating the classification of each
 #'     RR interval.  (Same possible values as before)
 #'
@@ -230,18 +232,22 @@ classify_hrv_artefacts_lipponen <- function(
 #' *   **Interpolation:** Ectopic, long, and short beats are corrected by
 #'     replacing the identified intervals with values obtained via cubic spline
 #'     interpolation.
-#' *   **Removal:** Extra beats are removed.
+#' *   **Removal:** Extra beats are removed and their interval is merged into
+#'     the adjacent interval, so the total elapsed time of the recording is
+#'     preserved.
 #' *   **Insertion:**  Rows are inserted for missed beats, with the time
-#'      value set to half the duration of the long interval.
+#'      value set to half the duration of the long interval, preserving the
+#'      total elapsed time.
 #'
 #' @param data A `dplyr::tibble` returned by
 #'   `detect_hrv_artefacts`, containing 'time' and 'classification' columns.
 #'
 #' @return A `dplyr::tibble` with the following columns:
-#'   * `time`: The *corrected* RR intervals (in milliseconds).
+#'   * `time`: The *corrected* RR intervals (same unit as the input).
 #'   * `classification`:  The updated classification column. Intervals that
-#'     were corrected by interpolation will have the classification
-#'      `"interpolated"`. Inserted "missed" beats will have the classification
+#'     were corrected by interpolation keep their original classification and
+#'     are flagged as `"interpolated"` in the `correction` column. Inserted
+#'     "missed" beats will have the classification
 #'     `"missed"`. Removed beats will not be present.
 #'
 #' @seealso [classify_hrv_artefacts_lipponen()], [signal::interp1()]
@@ -311,8 +317,20 @@ correct_hrv_artefacts_lipponen <- function(data) {
   }
 
   # --- 2. Remove Extra Beats ---
-  data <- data %>%
-    dplyr::filter(classification != "extra")
+  # A false beat splits one true interval into two short ones, so the
+  # interval of the extra beat is merged into the following interval (or the
+  # previous one at the end of the series) to preserve elapsed time.
+  extra_indices <- which(data$classification == "extra")
+  if (length(extra_indices) > 0) {
+    for (i in rev(extra_indices)) {
+      if (i < nrow(data)) {
+        data$time[i + 1] <- data$time[i + 1] + data$time[i]
+      } else if (i > 1) {
+        data$time[i - 1] <- data$time[i - 1] + data$time[i]
+      }
+      data <- data[-i, , drop = FALSE]
+    }
+  }
 
   # --- 3. Insert Missed Beats ---
   missed_indices <- which(data$classification == "missed")
@@ -327,7 +345,7 @@ correct_hrv_artefacts_lipponen <- function(data) {
       )
       data$time[i] <- new_time
       data <- dplyr::bind_rows(
-        data[1:(i - 1), , drop = FALSE],
+        data[seq_len(i - 1), , drop = FALSE],
         new_row,
         data[i:nrow(data), , drop = FALSE]
       )
@@ -362,10 +380,15 @@ calculate_hrv_rmssd <- function(data, ...) {
   # Correct the artefacts
   corrected_data <- correct_hrv_artefacts_lipponen(classified_data)
 
-  # Calculate RMSSD on the *corrected* and *normal* beats
+  # Calculate RMSSD on the corrected sequence. Successfully interpolated or
+  # inserted beats carry a correction flag; rows that could not be repaired
+  # (original classification retained, no correction applied) are excluded.
   rmssd_values <- corrected_data %>%
-    dplyr::filter(classification %in% c("normal", "missed")) %>% # Include "missed" (inserted)
-    dplyr::summarise(rmssd = sqrt(mean(diff(time)^2))) %>%
+    dplyr::filter(
+      .data$correction != "none" |
+        .data$classification %in% c("normal", "missed")
+    ) %>%
+    dplyr::summarise(rmssd = sqrt(mean(diff(.data$time)^2))) %>%
     dplyr::pull(rmssd)
 
   return(list(
@@ -391,13 +414,17 @@ calculate_hrv_rmssd <- function(data, ...) {
 #'   (default: 30).
 #' @param min_segment_beats Integer, minimum number of beats in a segment
 #' (default: 30)
+#' @param time_unit Character. The unit of the `time` column: `"seconds"`
+#'   (the default) or `"milliseconds"` (the unit returned by
+#'   [extract_rr_data()]). All phase and exclusion boundaries are defined in
+#'   seconds regardless of the input unit.
 #' @param ... other parameters passed to `detect_hrv_artefacts`
 #'
 #' @return A list containing:
 #'    * `rmssd_lying`: RMSSD for the lying phase (or NA).
 #'    * `rmssd_standing`: RMSSD for the standing phase (or NA).
 #'    * `rmssd_values`: A numeric vector of all segment RMSSD values.
-#'    * `segment_lengths`: A numeric vector of segment lengths.
+#'    * `segment_lengths`: A numeric vector of segment lengths (in seconds).
 #'    * `segment_beat_counts`: An integer vector of segment beat counts.
 #'    * `aggregated_rmssd`: Aggregated RMSSD (mean of a ll segments).
 #'    * `n_segments`: Number of segments
@@ -411,28 +438,31 @@ calculate_rmssd_orthostatic_enhanced <- function(
   initial_stabilization_time = 60,
   min_segment_length = 30,
   min_segment_beats = 30,
+  time_unit = c("seconds", "milliseconds"),
   ...
 ) {
+  time_unit <- match.arg(time_unit)
+  unit_factor <- if (time_unit == "milliseconds") 1000 else 1
+
   # --- 1. Initial Artefact Detection (L&T) ---
   classified_data <- classify_hrv_artefacts_lipponen(data, ...)
 
   # --- 2. Define Phases and Exclusion Periods ---
-  total_time <- sum(data$time)
+  total_time <- sum(data$time) / unit_factor
   # Assume the first 3 mins are lying and the rest is standing, even if total time is more than 6 minutes
   lying_end_time <- min(180, total_time / 2)
-  standing_start_time <- lying_end_time
 
-  transition_start <- standing_start_time - transition_exclusion_time / 2
-  transition_end <- standing_start_time + transition_exclusion_time / 2
+  transition_start <- lying_end_time - transition_exclusion_time / 2
+  transition_end <- lying_end_time + transition_exclusion_time / 2
 
   # --- 3. Refined Artefact Removal (Phase-Specific) ---
   classified_data <- classified_data %>%
     dplyr::mutate(
-      cumulative_time = cumsum(time),
+      cumulative_time = cumsum(.data$time) / unit_factor,
       phase = dplyr::case_when(
-        cumulative_time <= lying_end_time ~ "lying",
-        cumulative_time >= standing_start_time ~ "standing",
-        TRUE ~ "transition"
+        cumulative_time <= transition_start ~ "lying",
+        cumulative_time < transition_end ~ "transition",
+        TRUE ~ "standing"
       ),
       # Flag artefacts and neighbors
       artefact_or_neighbor = classification != "normal" |
@@ -447,7 +477,7 @@ calculate_rmssd_orthostatic_enhanced <- function(
   filtered_data <- classified_data %>%
     dplyr::filter(
       !artefact_or_neighbor, # Remove artefacts and neighbors
-      !(phase == "transition"), # Remove transition phase
+      !(phase == "transition"), # Remove transition period around standing onset
       !(phase == "lying" & cumulative_time <= initial_stabilization_time), # Remove initial stabilization
       (phase == "lying" &
         (percent_change <= secondary_threshold_percent_lying / 100 |
@@ -458,11 +488,10 @@ calculate_rmssd_orthostatic_enhanced <- function(
     )
 
   # --- 4. Segment-Based RMSSD Calculation (per phase) ---
-  calculate_rmssd_segments <- function(rr_data, min_seg_length, min_seg_beats) {
-    rr_clean <- rr_data
-    n_clean <- length(rr_clean)
-
-    if (n_clean == 0) {
+  # Segments are split on elapsed-time gaps (removed beats or excluded
+  # periods) so successive differences are never taken across a gap.
+  calculate_rmssd_segments <- function(phase_data, min_seg_length, min_seg_beats) {
+    if (nrow(phase_data) == 0) {
       return(list(
         rmssd_values = NA,
         segment_lengths = NA,
@@ -472,11 +501,14 @@ calculate_rmssd_orthostatic_enhanced <- function(
       ))
     }
 
-    # Identify segments (gaps between removed artefacts)
+    rr_clean <- phase_data$time
+    elapsed <- phase_data$cumulative_time
+    gap_threshold <- 1.5 * stats::median(rr_clean)
+
     segment_indices <- c(
       1,
-      which(diff(rr_data) > (1.5 * median(rr_data))) + 1,
-      n_clean + 1
+      which(diff(elapsed) > gap_threshold) + 1,
+      nrow(phase_data) + 1
     ) # Indices of segment starts.
 
     rmssd_values <- numeric(length(segment_indices) - 1)
@@ -490,7 +522,7 @@ calculate_rmssd_orthostatic_enhanced <- function(
       end_index <- segment_indices[i + 1] - 1
 
       segment_rr <- rr_clean[start_index:end_index]
-      segment_length <- sum(segment_rr)
+      segment_length <- sum(segment_rr) / unit_factor
       segment_beat_count <- length(segment_rr)
 
       # Check minimum length requirements
@@ -526,16 +558,16 @@ calculate_rmssd_orthostatic_enhanced <- function(
     ))
   }
 
-  lying_rr <- filtered_data$time[filtered_data$phase == "lying"]
-  standing_rr <- filtered_data$time[filtered_data$phase == "standing"]
+  lying_data <- filtered_data[filtered_data$phase == "lying", ]
+  standing_data <- filtered_data[filtered_data$phase == "standing", ]
 
   lying_results <- calculate_rmssd_segments(
-    lying_rr,
+    lying_data,
     min_segment_length,
     min_segment_beats
   )
   standing_results <- calculate_rmssd_segments(
-    standing_rr,
+    standing_data,
     min_segment_length,
     min_segment_beats
   )

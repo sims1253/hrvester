@@ -174,9 +174,13 @@ detect_artifacts_kubios <- function(
 #' @param ... Additional arguments passed to correction functions
 #'
 #' @return A data frame containing the processed RR data with the following structure:
-#'   - `time`: Numeric vector of RR intervals (corrected if method != "none")
-#'   - Additional columns may be present depending on correction method
-#'   - Attributes include correction metadata for diagnostic purposes
+#'   - `time`: Numeric vector of RR intervals in milliseconds (corrected if
+#'     method != "none")
+#'   - Attributes include correction metadata for diagnostic purposes, plus
+#'     `raw_rr` (the series before physiological correction, after device
+#'     placeholder removal) and `raw_artifact_indices` (indices into `raw_rr`
+#'     of detected physiological artifacts) so quality assessment can use the
+#'     original artifact burden
 #'
 #' @details
 #' The function implements a comprehensive preprocessing pipeline:
@@ -189,7 +193,7 @@ detect_artifacts_kubios <- function(
 #' **Correction Methods:**
 #' - `"linear"`: Linear interpolation (lowest RMSSD bias, recommended default)
 #' - `"cubic"`: Cubic spline interpolation (Kubios-style, good automation)
-#' - `"lipponen"`: Lipponen-Tarvainen algorithm (state-of-the-art, <2% error)
+#' - `"lipponen"`: Lipponen-Tarvainen algorithm (robust beat classification)
 #' - `"none"`: No correction applied (returns raw extracted data)
 #'
 #' **Artifact Detection:**
@@ -248,6 +252,8 @@ extract_rr_data <- function(
     attr(result, "correction_method") <- correction_method
     attr(result, "artifacts_detected") <- 0
     attr(result, "artifacts_corrected") <- 0
+    attr(result, "raw_rr") <- numeric(0)
+    attr(result, "raw_artifact_indices") <- integer(0)
     return(result)
   }
 
@@ -274,6 +280,8 @@ extract_rr_data <- function(
     attr(result, "correction_method") <- "none"
     attr(result, "artifacts_detected") <- length(measurement_artifacts)
     attr(result, "artifacts_corrected") <- length(measurement_artifacts)
+    attr(result, "raw_rr") <- clean_rr_intervals
+    attr(result, "raw_artifact_indices") <- integer(0)
     return(result)
   }
 
@@ -286,6 +294,8 @@ extract_rr_data <- function(
     attr(result, "correction_method") <- correction_method
     attr(result, "artifacts_detected") <- length(measurement_artifacts)
     attr(result, "artifacts_corrected") <- length(measurement_artifacts)
+    attr(result, "raw_rr") <- clean_rr_intervals
+    attr(result, "raw_artifact_indices") <- integer(0)
     return(result)
   }
 
@@ -322,11 +332,24 @@ extract_rr_data <- function(
         result,
         "lipponen_corrections"
       ) <- correction_result$corrections_applied
-      attr(result, "lipponen_rmssd_error") <- correction_result$rmssd_error
+      attr(
+        result,
+        "lipponen_relative_rmssd_change"
+      ) <- correction_result$relative_rmssd_change
     }
   } else {
     # No physiological artifacts detected, return cleaned data
     result <- tibble::tibble(time = clean_rr_intervals)
+  }
+
+  # Preserve the pre-correction series and artifact indices so downstream
+  # quality assessment can use the raw artifact burden rather than the
+  # corrected signal
+  attr(result, "raw_rr") <- clean_rr_intervals
+  attr(result, "raw_artifact_indices") <- if (artifacts_detected > 0) {
+    artifact_detection$artifact_indices
+  } else {
+    integer(0)
   }
 
   # Calculate quality metrics on the original data for comprehensive assessment
@@ -512,16 +535,11 @@ detect_rr_artifacts <- function(
       end_idx <- i
     }
 
-    # Get window data excluding current point for comparison
-    window_data <- rr_intervals[start_idx:end_idx]
-    if (centered_window) {
-      window_data <- window_data[
-        window_data != rr_intervals[i] |
-          is.na(window_data) != is.na(rr_intervals[i])
-      ]
-    } else {
-      window_data <- window_data[-length(window_data)] # Remove current point
-    }
+    # Get window data excluding only the current index for comparison.
+    # Repeated or quantized neighbor values stay in the reference window.
+    window_indices <- seq(start_idx, end_idx)
+    window_indices <- window_indices[window_indices != i]
+    window_data <- rr_intervals[window_indices]
 
     # Skip if not enough valid data in window
     valid_window <- window_data[!is.na(window_data)]
@@ -785,7 +803,8 @@ correct_rr_linear <- function(
 #' @param hr_adaptive Logical indicating whether to use HR-adaptive thresholds.
 #'   Default is TRUE
 #' @param max_correction_rate Maximum percentage of beats that can be corrected.
-#'   Default is 5% to avoid over-smoothing
+#'   Must be a single finite number between 0 and 100. Default is 5% to avoid
+#'   over-smoothing. A value of 0 disables correction entirely.
 #'
 #' @return A list containing:
 #'   - `corrected_rr`: Numeric vector of corrected RR intervals
@@ -794,10 +813,15 @@ correct_rr_linear <- function(
 #'
 #' @details
 #' This function implements the Kubios-style cubic spline correction:
-#' - Uses HR-adaptive thresholds (20-30% or 0.20-0.30s ranges)
-#' - Limits corrections to <5% of beats to avoid over-smoothing
+#' - Uses HR-adaptive thresholds (20-30% or 200-300 ms deviation ranges)
+#' - Limits corrections to at most `max_correction_rate` percent of beats
 #' - Applies cubic spline interpolation using R's spline() function
 #' - Automatically detects artifacts based on percentage deviation
+#'
+#' In HR-adaptive mode the accepted range is the wider (less restrictive) of
+#' the percentage band around the median RR interval and the time-based band
+#' `median_rr - 200` to `median_rr + 300` ms. Both bounds are therefore
+#' relative to the median RR interval.
 #'
 #' The method balances automated detection with preservation of physiological
 #' variability, making it widely adopted in HRV research.
@@ -837,8 +861,28 @@ correct_rr_cubic_spline <- function(
     stop("hr_adaptive must be logical")
   }
 
+  if (
+    !is.numeric(max_correction_rate) ||
+      length(max_correction_rate) != 1 ||
+      !is.finite(max_correction_rate) ||
+      max_correction_rate < 0 ||
+      max_correction_rate > 100
+  ) {
+    stop("max_correction_rate must be a single finite value between 0 and 100")
+  }
+
   n <- length(rr_intervals)
   if (n < 3) {
+    return(list(
+      corrected_rr = rr_intervals,
+      artifact_mask = rep(FALSE, n),
+      n_corrected = 0
+    ))
+  }
+
+  # A zero correction budget explicitly disables correction
+  max_corrections <- floor(n * max_correction_rate / 100)
+  if (max_corrections == 0) {
     return(list(
       corrected_rr = rr_intervals,
       artifact_mask = rep(FALSE, n),
@@ -851,15 +895,16 @@ correct_rr_cubic_spline <- function(
 
   if (hr_adaptive) {
     # HR-adaptive: use both percentage and time-based thresholds
-    time_threshold_low <- 200 # 0.20s
-    time_threshold_high <- 300 # 0.30s
+    time_threshold_low <- 200 # 0.20s deviation below the median
+    time_threshold_high <- 300 # 0.30s deviation above the median
 
     # Calculate percentage-based thresholds
     percent_threshold_low <- median_rr * (1 - threshold_percent / 100)
     percent_threshold_high <- median_rr * (1 + threshold_percent / 100)
 
-    # Use wider of percentage or time-based threshold (less restrictive)
-    threshold_low <- min(percent_threshold_low, time_threshold_low)
+    # Use wider of percentage or time-based threshold (less restrictive);
+    # both bounds are relative to the median RR interval
+    threshold_low <- min(percent_threshold_low, median_rr - time_threshold_low)
     threshold_high <- max(
       percent_threshold_high,
       median_rr + time_threshold_high
@@ -875,7 +920,6 @@ correct_rr_cubic_spline <- function(
   n_artifacts <- sum(artifact_mask, na.rm = TRUE)
 
   # Apply correction rate limit
-  max_corrections <- floor(n * max_correction_rate / 100)
   if (n_artifacts > max_corrections) {
     # Keep only the most extreme artifacts
     deviations <- abs(rr_intervals - median(rr_intervals, na.rm = TRUE))
@@ -887,7 +931,7 @@ correct_rr_cubic_spline <- function(
       artifact_deviations,
       decreasing = TRUE
     )]
-    keep_indices <- sorted_indices[1:max_corrections]
+    keep_indices <- sorted_indices[seq_len(max_corrections)]
 
     artifact_mask <- rep(FALSE, n)
     artifact_mask[keep_indices] <- TRUE
@@ -923,8 +967,8 @@ correct_rr_cubic_spline <- function(
 #' Correct RR Intervals Using Lipponen-Tarvainen Algorithm
 #'
 #' Applies the complete Lipponen-Tarvainen algorithm for artifact detection
-#' and correction. This state-of-the-art method achieves <2% HRV error by
-#' combining robust classification with appropriate correction strategies.
+#' and correction, combining robust classification with appropriate
+#' correction strategies.
 #'
 #' @param rr_intervals Numeric vector of RR intervals in milliseconds
 #' @param alpha Scaling factor for threshold calculation. Default is 5.2
@@ -936,19 +980,23 @@ correct_rr_cubic_spline <- function(
 #'   - `corrected_rr`: Numeric vector of corrected RR intervals
 #'   - `classifications`: Character vector of beat classifications
 #'   - `corrections_applied`: Number of corrections applied
-#'   - `rmssd_error`: Estimated RMSSD error from corrections
+#'   - `relative_rmssd_change`: Relative change in RMSSD caused by the
+#'     corrections, compared with the *uncorrected input*. This is a
+#'     change diagnostic, not an accuracy measure: a perfect correction of a
+#'     corrupted series yields a large value, while leaving the series
+#'     unchanged yields zero. `NA` when the input RMSSD is zero.
 #'
 #' @details
 #' This function implements the complete Lipponen-Tarvainen algorithm:
 #' 1. Uses existing `classify_hrv_artefacts_lipponen()` for detection
 #' 2. Applies appropriate correction for each artifact type:
-#'    - Extra beats: Removed from sequence
+#'    - Extra beats: Removed from sequence (adjacent intervals merged)
 #'    - Missed beats: Insert estimated beat at half interval
 #'    - Ectopic/Long/Short: Cubic spline interpolation
-#' 3. Targets <2% HRV error as demonstrated in research
 #'
-#' The algorithm represents the current state-of-the-art in HRV artifact
-#' correction, providing superior accuracy for research applications.
+#' Accuracy of the correction against clean reference data is not estimated
+#' here; validate against independently annotated signals if accuracy
+#' claims are required.
 #'
 #' @examples
 #' \dontrun{
@@ -981,7 +1029,8 @@ correct_rr_lipponen_tarvainen <- function(
   # Convert to tibble format expected by existing classification function
   rr_tibble <- tibble::tibble(time = rr_intervals)
 
-  # Calculate reference RMSSD for error estimation
+  # RMSSD of the uncorrected input, used as the reference for the relative
+  # change diagnostic (not a clean ground truth)
   reference_rmssd <- sqrt(mean(diff(rr_intervals)^2))
 
   # Step 1: Classify artifacts using existing function
@@ -1003,15 +1052,20 @@ correct_rr_lipponen_tarvainen <- function(
   # Count corrections applied
   corrections_applied <- sum(classifications != "normal")
 
-  # Calculate RMSSD error
+  # Relative RMSSD change caused by the corrections
   corrected_rmssd <- sqrt(mean(diff(corrected_rr)^2))
-  rmssd_error <- abs(corrected_rmssd - reference_rmssd) / reference_rmssd
+  relative_rmssd_change <- if (is.finite(reference_rmssd) &&
+    reference_rmssd != 0) {
+    abs(corrected_rmssd - reference_rmssd) / reference_rmssd
+  } else {
+    NA_real_
+  }
 
   return(list(
     corrected_rr = corrected_rr,
     classifications = classifications,
     corrections_applied = corrections_applied,
-    rmssd_error = rmssd_error
+    relative_rmssd_change = relative_rmssd_change
   ))
 }
 
@@ -1047,6 +1101,10 @@ correct_rr_lipponen_tarvainen <- function(
 #' - Data completeness percentage
 #' - HR stability (lower variability = better for some contexts)
 #' - Measurement duration adequacy (minimum 5 minutes recommended)
+#'
+#' An empty input vector, or one containing no finite values, is not
+#' assessable: the function returns grade `"F"` with `NA` quality scores so
+#' that the absence of data can never be mistaken for excellent quality.
 #'
 #' @examples
 #' \dontrun{
@@ -1094,6 +1152,24 @@ calculate_rr_quality <- function(
 
   n_intervals <- length(rr_intervals)
   n_artifacts <- length(artifacts_detected)
+
+  # An empty or wholly unusable series cannot be assessed; never report it
+  # as high quality. Grade "F" (unusable) with NA scores distinguishes "no
+  # data" from "zero artifacts found in real data".
+  if (sum(is.finite(rr_intervals)) == 0) {
+    warning(
+      "calculate_rr_quality: no usable RR intervals, returning unassessable ",
+      "quality (grade F)"
+    )
+    return(list(
+      artifact_percentage = NA_real_,
+      signal_quality_index = NA_real_,
+      data_completeness = NA_real_,
+      hr_stability = NA_real_,
+      measurement_duration = 0,
+      quality_grade = "F"
+    ))
+  }
 
   # Calculate basic metrics
   artifact_percentage <- if (n_intervals > 0) {

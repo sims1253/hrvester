@@ -14,6 +14,54 @@ validate_fit_object <- function(fit_object) {
 }
 
 
+#' Extract HR records from FIT object
+#'
+#' @description
+#' Extracts heart rate records with timestamps, handling both list and data
+#' frame formats. Timestamps enable elapsed-time (protocol) windowing rather
+#' than row-number slicing.
+#'
+#' @param fit_object An object of class FitFile
+#' @return A data frame with `timestamp` and `heart_rate` columns. If the
+#'   record carries no timestamps, a one-sample-per-second sequence is used.
+#' @keywords internal
+#' @importFrom FITfileR records
+get_hr_records <- function(fit_object) {
+  validate_fit_object(fit_object)
+
+  records <- FITfileR::records(fit_object)
+
+  # Validate records exist
+  if (
+    is.null(records) ||
+      (is.data.frame(records) && nrow(records) == 0) ||
+      (is.list(records) && length(records) == 0)
+  ) {
+    stop("No heart rate records found in FIT file")
+  }
+
+  if (inherits(records, "list")) {
+    # Find record with most data points
+    max_rows_idx <- which.max(vapply(records, nrow, integer(1)))
+    records <- records[[max_rows_idx]]
+  }
+
+  # Validate heart rate data
+  if (is.null(records$heart_rate) || length(records$heart_rate) == 0) {
+    stop("No heart rate data found in records")
+  }
+
+  if (is.null(records$timestamp)) {
+    # Fall back to a one-sample-per-second timeline
+    records$timestamp <- seq_along(records$heart_rate)
+  }
+
+  data.frame(
+    timestamp = records$timestamp,
+    heart_rate = as.numeric(records$heart_rate)
+  )
+}
+
 #' Extract HR data from FIT object
 #'
 #' @description
@@ -24,31 +72,8 @@ validate_fit_object <- function(fit_object) {
 #' @keywords internal
 #' @importFrom FITfileR records
 get_HR <- function(fit_object) {
-  validate_fit_object(fit_object)
-
-  HR <- FITfileR::records(fit_object)
-
-  # Validate records exist
-  if (
-    is.null(HR) ||
-      (is.data.frame(HR) && nrow(HR) == 0) ||
-      (is.list(HR) && length(HR) == 0)
-  ) {
-    stop("No heart rate records found in FIT file")
-  }
-
-  if (inherits(HR, "list")) {
-    # Find record with most data points
-    max_rows_idx <- which.max(sapply(HR, nrow))
-    HR <- HR[[max_rows_idx]]$heart_rate
-  } else {
-    HR <- HR$heart_rate
-  }
-
-  # Validate heart rate data
-  if (is.null(HR) || length(HR) == 0) {
-    stop("No heart rate data found in records")
-  }
+  hr_records <- get_hr_records(fit_object)
+  HR <- hr_records$heart_rate
 
   # Check for missing/NA values
   na_count <- sum(is.na(HR))
@@ -64,9 +89,6 @@ get_HR <- function(fit_object) {
       sum(invalid_hr, na.rm = TRUE)
     ))
   }
-
-  # Limit to first 360 seconds
-  HR <- HR[1:min(360, length(HR))]
 
   # Ensure minimum data points
   if (length(HR) < 30) {
@@ -201,6 +223,17 @@ extract_session_data <- function(fit_object) {
 #' Calculates HRV metrics from a FIT file, integrating data extraction,
 #' RR interval processing, and HRV calculation with error handling.
 #'
+#' One elapsed-time protocol (in seconds) drives both HR and RR analyses:
+#' the first `warmup` seconds are discarded; the laying phase ends at
+#' `laying_time`; the transition band is centred on `laying_time` when
+#' `centered_transition = TRUE` and the standing phase starts at
+#' `laying_time + transition_time / 2` (or `laying_time + transition_time`
+#' otherwise). HR windows are selected by record timestamp, so recordings
+#' that are not sampled at exactly 1 Hz are handled correctly.
+#'
+#' Phase quality assessment uses the raw (pre-correction) artifact burden so
+#' that correction cannot make a poor recording appear clean.
+#'
 #' @param file_path Path to FIT file
 #' @param standing_time Time in seconds to consider as standing
 #' @param transition_time Time in seconds to consider as transition
@@ -214,13 +247,18 @@ extract_session_data <- function(fit_object) {
 #' @param centered_transition Logical indicating whether the transition time
 #'   should be split into laying and standing times. FALSE, if transition time
 #'   is only taken from the laying phase.
-#' @param warmup Time in seconds from the start that should be discarded
+#' @param warmup Time in seconds from the start that should be discarded from
+#'   both HR and RR analyses
 #' @return Tibble containing HRV metrics
 #' @param sport_name Name of the sport for the fit file. Used as a filter.
 #' @param min_quality_threshold Minimum quality threshold (0-1) for data to be processed.
 #'   Data below this quality threshold will be discarded. Default is 0.0 (no filtering).
 #' @param correction_method Character string specifying the artifact correction
 #'   method. Options are: "linear", "cubic", "lipponen", "none". Default is "linear".
+#' @param config_id Cache provenance. Digest of the effective analysis
+#'   configuration, computed from the other arguments when NULL (the default).
+#'   Passed by [process_fit_directory()] so cached entries can be invalidated
+#'   when the analysis configuration changes.
 #' @export
 process_fit_file <- function(
   file_path,
@@ -236,7 +274,8 @@ process_fit_file <- function(
   warmup = 70,
   sport_name = "OST",
   min_quality_threshold = 0.0,
-  correction_method = "linear"
+  correction_method = "linear",
+  config_id = NULL
 ) {
   # Validate min_quality_threshold parameter
   if (
@@ -259,6 +298,28 @@ process_fit_file <- function(
       "correction_method must be one of: ",
       paste(valid_methods, collapse = ", ")
     )
+  }
+
+  # Provenance recorded with the result so caches can detect configuration
+  # and content changes
+  file_digest <- unname(tools::md5sum(file_path))
+  if (is.null(config_id)) {
+    config_id <- compute_config_id(list(
+      standing_time = standing_time,
+      transition_time = transition_time,
+      laying_time = laying_time,
+      min_rr = min_rr,
+      max_rr = max_rr,
+      window_size = window_size,
+      threshold = threshold,
+      centered_transition = centered_transition,
+      centered_window = centered_window,
+      warmup = warmup,
+      sport_name = sport_name,
+      min_quality_threshold = min_quality_threshold,
+      correction_method = correction_method,
+      package_version = as.character(utils::packageVersion("hrvester"))
+    ))
   }
 
   fit_object <- read_fit_file(file_path = file_path)
@@ -285,20 +346,53 @@ process_fit_file <- function(
         file_path = file_path,
         session_date = session$date,
         week = session$week,
-        time_of_day = session$time_of_day
+        time_of_day = session$time_of_day,
+        file_digest = file_digest,
+        config_id = config_id
       )
     )
   }
 
-  hr_data <- get_HR(fit_object)
+  hr_records <- get_hr_records(fit_object)
+  hr_elapsed <- as.numeric(
+    hr_records$timestamp - hr_records$timestamp[1],
+    units = "secs"
+  )
 
-  # Calculate metrics
+  # One protocol, in elapsed seconds, for both HR and RR analyses
+  standing_start <- if (centered_transition) {
+    laying_time + transition_time / 2
+  } else {
+    laying_time + transition_time
+  }
+
+  hr_in_window <- function(from, to) {
+    idx <- hr_elapsed >= from & hr_elapsed < to
+    hr_records$heart_rate[idx]
+  }
+
+  hr_window_mean <- function(from, to) {
+    values <- hr_in_window(from, to)
+    if (length(values[!is.na(values)]) == 0) {
+      return(NA_real_)
+    }
+    round(mean(values, na.rm = TRUE), 2)
+  }
+
+  # Calculate metrics from timestamp-selected HR windows
+  resting_hr_values <- hr_in_window(warmup, laying_time)
   resting_hr <- calculate_resting_hr(
-    hr_data[30:180],
+    resting_hr_values,
     method = "lowest_sustained"
   )
 
-  hrr_metrics <- calculate_hrr(hr_data[181:240], resting_hr)
+  hrr_idx <- hr_elapsed >= standing_start &
+    hr_elapsed < standing_start + 60
+  hrr_metrics <- calculate_hrr(
+    hr_records$heart_rate[hrr_idx],
+    resting_hr,
+    times = hr_elapsed[hrr_idx] - standing_start
+  )
 
   # Extract RR data with quality metrics using specified correction method
   rr_intervals <- extract_rr_data(
@@ -306,7 +400,15 @@ process_fit_file <- function(
     correction_method = correction_method
   )
 
-  # Note: extract_rr_data now returns RR intervals in milliseconds (after unit conversion fix)
+  # Capture raw-series provenance before phase splitting (dplyr may drop
+  # custom attributes)
+  raw_rr <- attr(rr_intervals, "raw_rr")
+  raw_artifact_indices <- attr(rr_intervals, "raw_artifact_indices")
+  threshold_used <- attr(rr_intervals, "threshold_used")
+  if (is.null(raw_rr)) {
+    raw_rr <- rr_intervals$time
+    raw_artifact_indices <- integer(0)
+  }
 
   rr_intervals <- split_rr_phases(
     rr_intervals,
@@ -317,13 +419,17 @@ process_fit_file <- function(
     centered_transition = centered_transition
   )
 
+  # Discard the warmup period from the laying phase
+  rr_intervals <- rr_intervals %>%
+    dplyr::filter(!(phase == "laying" & .data$elapsed_time <= warmup))
+
   laying_data <- rr_full_phase_processing(
     rr_segment = dplyr::filter(rr_intervals, phase == "laying")$time,
     min_rr = min_rr,
     max_rr = max_rr,
-    window_size = 5,
-    threshold = 0.2,
-    centered_window = FALSE
+    window_size = window_size,
+    threshold = threshold,
+    centered_window = centered_window
   )
 
   laying_hrv <- calculate_hrv(laying_data$cleaned_rr)
@@ -333,7 +439,7 @@ process_fit_file <- function(
     min_rr = min_rr,
     max_rr = max_rr,
     window_size = window_size,
-    threshold = 0.17,
+    threshold = threshold,
     centered_window = centered_window
   )
 
@@ -344,44 +450,66 @@ process_fit_file <- function(
     min_rr = min_rr,
     max_rr = max_rr,
     window_size = window_size,
-    threshold = 0.2,
+    threshold = threshold,
     centered_window = centered_window
   )
 
   standing_hrv <- calculate_hrv(standing_data$cleaned_rr)
 
-  # Extract quality metrics from RR data
-  rr_quality_metrics <- attr(rr_intervals, "quality_metrics")
+  # Phase quality is assessed on the raw (pre-correction) beat series using
+  # the artifact indices detected before correction, so interpolation cannot
+  # hide the original artifact burden
+  raw_elapsed <- cumsum(raw_rr) / 1000
+  raw_phase <- if (centered_transition) {
+    dplyr::case_when(
+      raw_elapsed <= laying_time - transition_time / 2 ~ "laying",
+      raw_elapsed <= laying_time + transition_time / 2 ~ "transition",
+      .default = "standing"
+    )
+  } else {
+    dplyr::case_when(
+      raw_elapsed <= laying_time ~ "laying",
+      raw_elapsed <= laying_time + transition_time ~ "transition",
+      .default = "standing"
+    )
+  }
 
-  # Calculate phase-specific quality metrics for laying and standing phases
-  laying_rr <- dplyr::filter(rr_intervals, phase == "laying")$time
-  standing_rr <- dplyr::filter(rr_intervals, phase == "standing")$time
+  phase_quality <- function(phase_name) {
+    phase_mask <- raw_phase == phase_name
+    if (phase_name == "laying") {
+      # The warmup period is excluded from processing and from quality
+      phase_mask <- phase_mask & raw_elapsed > warmup
+    }
+    phase_indices <- which(phase_mask)
+    artifact_positions <- match(
+      raw_artifact_indices[raw_artifact_indices %in% phase_indices],
+      phase_indices
+    )
+    calculate_rr_quality(
+      rr_intervals = raw_rr[phase_mask],
+      artifacts_detected = artifact_positions,
+      correction_metadata = list(
+        threshold_used = threshold_used,
+        method = correction_method
+      )
+    )
+  }
 
-  # Calculate quality metrics for laying phase
-  laying_artifacts <- which(!laying_data$is_valid)
-  laying_quality <- calculate_rr_quality(
-    rr_intervals = laying_rr,
-    artifacts_detected = laying_artifacts,
-    correction_metadata = list(threshold_used = 250, method = "linear")
-  )
+  laying_quality <- phase_quality("laying")
+  standing_quality <- phase_quality("standing")
 
-  # Calculate quality metrics for standing phase
-  standing_artifacts <- which(!standing_data$is_valid)
-  standing_quality <- calculate_rr_quality(
-    rr_intervals = standing_rr,
-    artifacts_detected = standing_artifacts,
-    correction_metadata = list(threshold_used = 250, method = "linear")
-  )
-
-  # Check quality thresholds - convert signal quality index to 0-1 scale for comparison
+  # Check quality thresholds - convert signal quality index to 0-1 scale for
+  # comparison. NA (unassessable) never passes the gate.
   laying_quality_score <- laying_quality$signal_quality_index / 100
   standing_quality_score <- standing_quality$signal_quality_index / 100
 
+  quality_ok <- is.finite(laying_quality_score) &&
+    is.finite(standing_quality_score) &&
+    laying_quality_score >= min_quality_threshold &&
+    standing_quality_score >= min_quality_threshold
+
   # Apply quality filtering - both phases must meet minimum threshold
-  if (
-    laying_quality_score < min_quality_threshold ||
-      standing_quality_score < min_quality_threshold
-  ) {
+  if (!quality_ok) {
     message(sprintf(
       "File %s discarded due to low quality: laying=%.2f, standing=%.2f (threshold=%.2f)",
       basename(file_path),
@@ -393,12 +521,15 @@ process_fit_file <- function(
       file_path = file_path,
       session_date = session$date,
       week = session$week,
-      time_of_day = session$time_of_day
+      time_of_day = session$time_of_day,
+      file_digest = file_digest,
+      config_id = config_id
     )
   } else if (
     length(laying_data$is_valid) >= 2 && length(standing_data$is_valid) >= 2
   ) {
     # Process if we have enough data and quality is acceptable
+    standing_max_hr <- hr_in_window(standing_start, standing_start + 40)
     result <- tibble::tibble(
       source_file = file_path,
       date = as.character(session$date),
@@ -406,12 +537,17 @@ process_fit_file <- function(
       time_of_day = session$time_of_day,
       laying_rmssd = laying_hrv$rmssd,
       laying_sdnn = laying_hrv$sdnn,
-      laying_hr = round(mean(hr_data[30:150], na.rm = TRUE), 2),
+      laying_hr = hr_window_mean(warmup, laying_time),
       laying_resting_hr = resting_hr,
       standing_rmssd = standing_hrv$rmssd,
       standing_sdnn = standing_hrv$sdnn,
-      standing_hr = round(mean(hr_data[220:330], na.rm = TRUE), 2),
-      standing_max_hr = max(hr_data[181:220], na.rm = TRUE),
+      standing_hr = hr_window_mean(standing_start + 40, standing_start + 160),
+      standing_max_hr = if (length(standing_max_hr[!is.na(standing_max_hr)]) >
+        0) {
+        max(standing_max_hr, na.rm = TRUE)
+      } else {
+        NA_real_
+      },
       hrr_60s = hrr_metrics$hrr_60s,
       hrr_relative = hrr_metrics$hrr_relative,
       orthostatic_rise = hrr_metrics$orthostatic_rise,
@@ -426,14 +562,19 @@ process_fit_file <- function(
       standing_artifact_percentage = standing_quality$artifact_percentage,
       standing_signal_quality_index = standing_quality$signal_quality_index,
       standing_data_completeness = standing_quality$data_completeness,
-      standing_quality_grade = standing_quality$quality_grade
+      standing_quality_grade = standing_quality$quality_grade,
+      # Provenance used for cache invalidation
+      file_digest = file_digest,
+      config_id = config_id
     )
   } else {
     result <- create_empty_result(
       file_path = file_path,
       session_date = session$date,
       week = session$week,
-      time_of_day = session$time_of_day
+      time_of_day = session$time_of_day,
+      file_digest = file_digest,
+      config_id = config_id
     )
   }
   return(result)
@@ -448,9 +589,18 @@ process_fit_file <- function(
 #' @param session_date Date of measurement
 #' @param week Week number
 #' @param time_of_day Time of day
+#' @param file_digest MD5 digest of the source file contents
+#' @param config_id Analysis configuration identity
 #' @return Tibble with NA values
 #' @keywords internal
-create_empty_result <- function(file_path, session_date, week, time_of_day) {
+create_empty_result <- function(
+  file_path,
+  session_date,
+  week,
+  time_of_day,
+  file_digest = NA_character_,
+  config_id = NA_character_
+) {
   tibble::tibble(
     source_file = file_path,
     date = as.character(session_date),
@@ -478,7 +628,10 @@ create_empty_result <- function(file_path, session_date, week, time_of_day) {
     standing_artifact_percentage = NA_real_,
     standing_signal_quality_index = NA_real_,
     standing_data_completeness = NA_real_,
-    standing_quality_grade = NA_character_
+    standing_quality_grade = NA_character_,
+    # Provenance used for cache invalidation
+    file_digest = file_digest,
+    config_id = config_id
   )
 }
 
@@ -487,6 +640,13 @@ create_empty_result <- function(file_path, session_date, week, time_of_day) {
 #'
 #' Processes multiple FIT files from a specified directory, utilizing caching to
 #' avoid reprocessing unchanged files. This function efficiently processes new or updated files in a directory, leveraging a cache to skip already processed files.
+#'
+#' A cached entry is reused only when the package version, the effective
+#' analysis configuration (protocol windows, filtering thresholds, correction
+#' method, quality threshold, sport filter) and the source file contents all
+#' match the current run. Overwritten files and configuration changes are
+#' therefore reprocessed automatically; entries lacking provenance
+#' information (legacy caches) are reprocessed as well.
 #'
 #' @param dir_path The directory path containing FIT files to process.
 #' @param cache_file Path to the cache file for storing processed data. Defaults to "hrv_cache.csv" within the directory.
@@ -568,13 +728,53 @@ process_fit_directory <- function(
     cache_definition()
   }
 
+  # Identity of the effective analysis configuration: cache entries are only
+  # reusable when the configuration, package version and file contents match
+  config_id <- compute_config_id(list(
+    standing_time = standing_time,
+    transition_time = transition_time,
+    laying_time = laying_time,
+    min_rr = min_rr,
+    max_rr = max_rr,
+    window_size = window_size,
+    threshold = threshold,
+    centered_transition = centered_transition,
+    centered_window = centered_window,
+    warmup = warmup,
+    sport_name = sport_name,
+    min_quality_threshold = min_quality_threshold,
+    correction_method = correction_method,
+    package_version = as.character(utils::packageVersion("hrvester"))
+  ))
+
   # Find files to process
   new_files <- setdiff(fit_files, cached_data$source_file)
-  outdated_entries <- cached_data %>%
-    dplyr::filter(
-      package_version != utils::packageVersion("hrvester")
-    ) %>%
-    dplyr::pull(source_file)
+
+  # An entry is outdated when its configuration identity is missing (legacy
+  # caches) or different, or when the source file contents changed. Entries
+  # whose files no longer exist are kept unchanged.
+  entry_outdated <- function(entry) {
+    if (is.na(entry$config_id) || entry$config_id != config_id) {
+      return(TRUE)
+    }
+    if (!file.exists(entry$source_file)) {
+      return(FALSE)
+    }
+    !identical(unname(tools::md5sum(entry$source_file)), entry$file_digest)
+  }
+
+  outdated_entries <- character(0)
+  if (nrow(cached_data) > 0) {
+    outdated <- vapply(
+      seq_len(nrow(cached_data)),
+      function(i) entry_outdated(cached_data[i, ]),
+      logical(1)
+    )
+    # Only reprocess entries whose files are still present
+    outdated_entries <- cached_data$source_file[
+      outdated & cached_data$source_file %in% fit_files
+    ]
+  }
 
   files_to_process <- unique(c(new_files, outdated_entries))
 
@@ -599,7 +799,8 @@ process_fit_directory <- function(
           warmup = warmup,
           sport_name = sport_name,
           min_quality_threshold = min_quality_threshold,
-          correction_method = correction_method
+          correction_method = correction_method,
+          config_id = config_id
         )
         return(result)
       },
@@ -613,11 +814,12 @@ process_fit_directory <- function(
     all_data <- dplyr::bind_rows(cached_data, new_data) %>%
       dplyr::arrange(date, desc(time_of_day))
 
-    # Save updated cache atomically
+    # Save updated cache atomically: a failed write leaves the previous
+    # cache file untouched
     safe_file_operation(
-      readr::write_csv,
-      x = all_data,
-      file = cache_file
+      save_cache_atomic,
+      data = all_data,
+      cache_file = cache_file
     )
 
     return(all_data)

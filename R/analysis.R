@@ -65,8 +65,15 @@ analyze_readiness <- function(current_metrics, baseline_metrics) {
       100
   )
 
-  # Define training status based on BJJ-specific thresholds
-  status <- if (deviations$rmssd_dev > 5) {
+  any_deviation_missing <- any(
+    vapply(deviations, function(d) is.na(d) || !is.finite(d), logical(1))
+  )
+
+  # Define training status based on BJJ-specific thresholds; missing inputs
+  # produce an explicit insufficient-data status, never a training state
+  status <- if (any_deviation_missing) {
+    "INSUFFICIENT_DATA"
+  } else if (deviations$rmssd_dev > 5) {
     "FRESH" # Enhanced recovery state
   } else if (deviations$rmssd_dev >= -5) {
     "NORMAL" # Good to train normally
@@ -77,39 +84,46 @@ analyze_readiness <- function(current_metrics, baseline_metrics) {
   }
 
   # Generate BJJ-specific recommendations
-  recommendations <- case_when(
-    status == "FRESH" ~
-      list(
-        bjj = "Full training, good day for hard rolls",
-        strength = "Proceed with planned session",
-        cardio = "Good day for higher intensity work"
-      ),
-    status == "NORMAL" ~
-      list(
-        bjj = "Regular training as planned",
-        strength = "Proceed as planned",
-        cardio = "Stay in Zone 1-2"
-      ),
-    status == "CAUTION" ~
-      list(
-        bjj = "Technical work only, limit sparring",
-        strength = "Reduce volume by 20%, maintain intensity",
-        cardio = "Zone 1 only, max 30 minutes"
-      ),
-    status == "WARNING" ~
-      list(
-        bjj = "Technique or drilling only, no sparring",
-        strength = "Active recovery or rest day",
-        cardio = "Light mobility work only"
-      )
-  )
+  recommendations <- if (status == "FRESH") {
+    list(
+      bjj = "Full training, good day for hard rolls",
+      strength = "Proceed with planned session",
+      cardio = "Good day for higher intensity work"
+    )
+  } else if (status == "NORMAL") {
+    list(
+      bjj = "Regular training as planned",
+      strength = "Proceed as planned",
+      cardio = "Stay in Zone 1-2"
+    )
+  } else if (status == "CAUTION") {
+    list(
+      bjj = "Technical work only, limit sparring",
+      strength = "Reduce volume by 20%, maintain intensity",
+      cardio = "Zone 1 only, max 30 minutes"
+    )
+  } else if (status == "WARNING") {
+    list(
+      bjj = "Technique or drilling only, no sparring",
+      strength = "Active recovery or rest day",
+      cardio = "Light mobility work only"
+    )
+  } else {
+    # INSUFFICIENT_DATA
+    list(
+      bjj = "No recommendation: insufficient baseline data",
+      strength = "No recommendation: insufficient baseline data",
+      cardio = "No recommendation: insufficient baseline data"
+    )
+  }
 
   # Additional BJJ-specific flags
   flags <- list(
-    high_fatigue = deviations$hr_dev > 5 && deviations$rmssd_dev < -5,
-    poor_recovery = deviations$ortho_dev > 15,
-    overreaching_risk = all(
-      tail(baseline_metrics$laying_rmssd, 3) < baseline$rmssd * 0.9
+    high_fatigue = isTRUE(deviations$hr_dev > 5) &&
+      isTRUE(deviations$rmssd_dev < -5),
+    poor_recovery = isTRUE(deviations$ortho_dev > 15),
+    overreaching_risk = isTRUE(
+      all(tail(baseline_metrics$laying_rmssd, 3) < baseline$rmssd * 0.9)
     )
   )
 
@@ -132,9 +146,12 @@ analyze_readiness <- function(current_metrics, baseline_metrics) {
 #' @param data A dataframe containing HRV metrics for at least 8 consecutive
 #'             days (current day plus 7-day baseline). Should include:
 #'   \itemize{
-#'     \item date (Date): Measurement dates
+#'     \item date (Date or character): Measurement dates in ISO format;
+#'       character dates (as produced by the processing pipeline and cache)
+#'       are accepted and normalized
 #'     \item laying_rmssd (numeric): RMSSD during laying position
-#'     \item laying_resting_hr (numeric): Resting heart rate
+#'     \item laying_resting_hr (numeric): Resting heart rate; fractional
+#'       values are supported
 #'     \item orthostatic_rise (numeric): Orthostatic response
 #'   }
 #' @return A formatted character string containing the HRV report with sections:
@@ -145,6 +162,12 @@ analyze_readiness <- function(current_metrics, baseline_metrics) {
 #'     \item Warning flags if present
 #'     \item 7-day trend analysis for RMSSD and heart rate
 #'   }
+#'
+#' @details When several measurements share the latest date, the first row
+#'   of that date (in input order) is reported. At least one usable baseline
+#'   day within the seven days before the current day is required; the
+#'   baseline does not need to be complete.
+#'
 #' @importFrom dplyr filter %>%
 #' @importFrom utils head tail
 #' @export
@@ -156,6 +179,18 @@ generate_daily_report <- function(data) {
           (current day plus 7-day baseline)"
     )
   }
+
+  # Normalize dates (the pipeline and cache store them as character)
+  data$date <- tryCatch(
+    as.Date(data$date),
+    error = function(e) {
+      stop("data$date contains invalid dates: ", conditionMessage(e))
+    }
+  )
+  if (any(is.na(data$date))) {
+    stop("data$date contains invalid dates")
+  }
+
   # Get latest metrics
   current_day <- max(data$date)
   current_metrics <- data %>%
@@ -169,6 +204,10 @@ generate_daily_report <- function(data) {
       date >= current_day - 7
     )
 
+  if (!any(!is.na(baseline_metrics$laying_rmssd))) {
+    stop("No usable baseline measurements within 7 days before the current day")
+  }
+
   # Get readiness analysis
   readiness <- analyze_readiness(current_metrics, baseline_metrics)
 
@@ -181,7 +220,7 @@ generate_daily_report <- function(data) {
 
     Current Metrics:
     - RMSSD: %.1f (%.1f%% from baseline)
-    - Resting HR: %d (%.1f%% from baseline)
+    - Resting HR: %.1f (%.1f%% from baseline)
     - Orthostatic Response: %.1f%% (%.1f%% from baseline)
 
     Recommendations:
@@ -195,7 +234,7 @@ generate_daily_report <- function(data) {
     - RMSSD Trend: %s
     - HR Trend: %s
     ",
-    format(as.Date(current_day), "%B %d, %Y"),
+    format(current_day, "%B %d, %Y"),
     readiness$status,
     current_metrics$laying_rmssd,
     readiness$metrics$deviations$rmssd_dev,
@@ -206,9 +245,9 @@ generate_daily_report <- function(data) {
     readiness$recommendations$bjj,
     readiness$recommendations$strength,
     readiness$recommendations$cardio,
-    if (readiness$flags$high_fatigue) "\n- High Fatigue Detected" else "",
-    if (readiness$flags$poor_recovery) "\n- Poor Recovery Response" else "",
-    if (readiness$flags$overreaching_risk) "\n- Risk of Overreaching" else "",
+    if (isTRUE(readiness$flags$high_fatigue)) "\n- High Fatigue Detected" else "",
+    if (isTRUE(readiness$flags$poor_recovery)) "\n- Poor Recovery Response" else "",
+    if (isTRUE(readiness$flags$overreaching_risk)) "\n- Risk of Overreaching" else "",
     calculate_trend_direction(tail(baseline_metrics$laying_rmssd, 7)),
     calculate_trend_direction(tail(baseline_metrics$laying_resting_hr, 7))
   )
@@ -286,8 +325,12 @@ calculate_trend_direction <- function(values) {
 #'     \item rmssd_score (numeric): Score based on RMSSD ratio (0-40 points)
 #'     \item ortho_score (numeric): Score based on orthostatic response (0-30 points)
 #'     \item hrr_score (numeric): Score based on heart rate recovery (0-30 points)
-#'     \item neural_recovery_score (numeric): Combined total score (0-100)
-#'     \item recovery_status (character): Classification based on total score
+#'     \item neural_recovery_score (numeric): Combined total score (0-100);
+#'       NA when any component cannot be computed (for example, no usable
+#'       moving-average baseline yet, or a missing measurement)
+#'     \item recovery_status (character): Classification based on total score;
+#'       "Insufficient data" when the score is NA, so unknown recovery is
+#'       never presented as poor recovery
 #'   }
 #' @importFrom rlang .data
 #' @importFrom dplyr mutate case_when %>%
@@ -348,6 +391,7 @@ calculate_neural_recovery <- function(data, window_size = 7) {
       # 2. Orthostatic Response Score (0-30 points)
       ortho_response = .data$standing_hr - .data$laying_resting_hr,
       ortho_score = case_when(
+        is.na(.data$ortho_response) ~ NA_real_, # Missing measurement
         .data$ortho_response <= 12 ~ 30, # Excellent response
         .data$ortho_response <= 15 ~ 25, # Good response
         .data$ortho_response <= 20 ~ 20, # Normal response
@@ -358,6 +402,7 @@ calculate_neural_recovery <- function(data, window_size = 7) {
 
       # 3. HRR Score (0-30 points)
       hrr_score = case_when(
+        is.na(.data$hrr_60s) ~ NA_real_, # Missing measurement
         .data$hrr_60s >= 25 ~ 30, # Excellent recovery
         .data$hrr_60s >= 20 ~ 25, # Good recovery
         .data$hrr_60s >= 15 ~ 20, # Normal recovery
@@ -366,13 +411,14 @@ calculate_neural_recovery <- function(data, window_size = 7) {
         TRUE ~ 5 # Very poor recovery
       ),
 
-      # Calculate final score (0-100)
+      # Calculate final score (0-100); NA when any component is missing
       neural_recovery_score = .data$rmssd_score +
         .data$ortho_score +
         .data$hrr_score,
 
       # Add status classification
       recovery_status = case_when(
+        is.na(.data$neural_recovery_score) ~ "Insufficient data",
         .data$neural_recovery_score >= 80 ~ "Fresh",
         .data$neural_recovery_score >= 70 ~ "Good",
         .data$neural_recovery_score >= 55 ~ "Normal",
@@ -403,59 +449,78 @@ calculate_neural_recovery <- function(data, window_size = 7) {
 #'           (if applicable)
 #'     \item score (numeric): The original neural recovery score
 #'   }
+#'
+#'   An `NA` score (insufficient data) returns an explicit
+#'   "Insufficient data" status without a training prescription instead of
+#'   an error.
+#'
 #' @importFrom dplyr case_when
 #' @export
 training_recommendations <- function(score, primary_type = "BJJ") {
-  # Input validation
+  # Input validation; any length-1 NA is treated as insufficient data
   if (
-    !is.numeric(score) ||
-      score < 0 ||
-      score > 100
+    length(score) != 1 ||
+      (!is.na(score) && (!is.numeric(score) || score < 0 || score > 100))
   ) {
     stop("score must be a numeric value between 0 and 100")
   }
+
   primary_type <- toupper(primary_type)
   if (!primary_type %in% c("BJJ", "STRENGTH")) {
     stop("primary_type must be either 'BJJ' or 'Strength'")
   }
 
-  base_rec <- case_when(
-    score >= 80 ~
-      list(
-        status = "Fresh",
-        intensity = "High",
-        volume = "Normal to High",
-        focus = "Progress training load"
-      ),
-    score >= 70 ~
-      list(
-        status = "Good",
-        intensity = "Normal to High",
-        volume = "Normal",
-        focus = "Maintain planned training"
-      ),
-    score >= 55 ~
-      list(
-        status = "Normal",
-        intensity = "Normal",
-        volume = "Normal to Reduced",
-        focus = "Maintain technical focus"
-      ),
-    score >= 40 ~
-      list(
-        status = "Reduced",
-        intensity = "Reduced",
-        volume = "Reduced",
-        focus = "Technical work priority"
-      ),
-    TRUE ~
-      list(
-        status = "Low",
-        intensity = "Low",
-        volume = "Minimum",
-        focus = "Active recovery"
-      )
-  )
+  if (is.na(score)) {
+    insufficient <- list(
+      status = "Insufficient data",
+      intensity = "Not assessable",
+      volume = "Not assessable",
+      focus = "Collect more measurements before prescribing training",
+      score = NA_real_
+    )
+    if (primary_type == "BJJ") {
+      insufficient$bjj_specific <-
+        "No recommendation: insufficient recovery data"
+    }
+    return(insufficient)
+  }
+
+  base_rec <- if (score >= 80) {
+    list(
+      status = "Fresh",
+      intensity = "High",
+      volume = "Normal to High",
+      focus = "Progress training load"
+    )
+  } else if (score >= 70) {
+    list(
+      status = "Good",
+      intensity = "Normal to High",
+      volume = "Normal",
+      focus = "Maintain planned training"
+    )
+  } else if (score >= 55) {
+    list(
+      status = "Normal",
+      intensity = "Normal",
+      volume = "Normal to Reduced",
+      focus = "Maintain technical focus"
+    )
+  } else if (score >= 40) {
+    list(
+      status = "Reduced",
+      intensity = "Reduced",
+      volume = "Reduced",
+      focus = "Technical work priority"
+    )
+  } else {
+    list(
+      status = "Low",
+      intensity = "Low",
+      volume = "Minimum",
+      focus = "Active recovery"
+    )
+  }
 
   # BJJ-specific modifications
   if (primary_type == "BJJ") {

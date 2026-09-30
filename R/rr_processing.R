@@ -8,36 +8,49 @@
 #'   and a `phase` column.
 #' @param session_info A list containing session information.  Must include a
 #'   numeric element named `duration` representing the total duration of the
-#'   recording (in the same units as `laying_time`, `transition_time`, and
-#'   `standing_time`).
-#' @param laying_time Numeric. The duration of the laying phase (e.g., in
-#'   seconds). Must be non-negative.
-#' @param transition_time Numeric. The duration of the transition phase (e.g.,
-#'   in seconds). Must be non-negative.
-#' @param standing_time Numeric. The duration of the standing phase (e.g., in
-#'   seconds). Must be non-negative.
+#'   recording in seconds.
+#' @param laying_time Numeric. The duration of the laying phase in seconds.
+#'   Must be non-negative.
+#' @param transition_time Numeric. The duration of the transition phase in
+#'   seconds. Must be non-negative.
+#' @param standing_time Numeric. The duration of the standing phase in
+#'   seconds. Must be non-negative.
 #' @param centered_transition Indicates if the transition time should be split
 #'   into laying and standig times. FALSE, if transition time is only taken
 #'   from the laying phase.
+#' @param time_unit Character. The unit of the `time` column: `"milliseconds"`
+#'   (the default, matching [extract_rr_data()] output) or `"seconds"`.
+#'   Elapsed time is always returned in seconds.
 #'
 #' @return A data frame with the same data as `rr_intervals`, but with two
 #'   added columns:
-#'   \item{elapsed_time}{The cumulative time from the start of the recording.}
+#'   \item{elapsed_time}{The cumulative time from the start of the recording,
+#'   in seconds, derived from the actual beat intervals (interval-end
+#'   convention: row `i` carries the time at which interval `i` ends).}
 #'   \item{phase}{A character string indicating the phase: "laying",
 #'   "transition", or "standing".}
 #'
-#' @details The sum of `laying_time` and `standing_time` cannot exceed
-#'   `session_info$duration`. If `rr_intervals` is an empty data frame, a
-#'   warning is issued, and an empty data frame with a `phase` column is
-#'   returned.
+#' @details Phase assignment uses the real beat timeline: `elapsed_time` is
+#'   the cumulative sum of the RR intervals converted to seconds. The series
+#'   is never stretched to match `session_info$duration`, so heart-rate
+#'   changes between phases cannot move beats into the wrong phase. The sum
+#'   of `laying_time` and `standing_time` cannot exceed
+#'   `session_info$duration`. If the total beat time deviates from
+#'   `session_info$duration` by more than 5 percent, a warning is issued and
+#'   the beat-derived timeline is used. If `rr_intervals` is an empty data
+#'   frame, a warning is issued, and an empty data frame with a `phase`
+#'   column is returned.
 #'
 #' @export
 #'
 #' @examples
-#' # Example with valid inputs
-#' rr_data <- data.frame(time = 1:100)
+#' # Example with valid inputs (time in seconds)
+#' rr_data <- data.frame(time = rep(1, 100))
 #' session_data <- list(duration = 100)
-#' result <- split_rr_phases(rr_data, session_data, 30, 20, 50)
+#' result <- split_rr_phases(
+#'   rr_data, session_data, 30, 20, 50,
+#'   time_unit = "seconds"
+#' )
 #' head(result)
 #'
 #' # Example with an empty rr_intervals data frame
@@ -48,7 +61,7 @@
 #'
 #' \dontrun{
 #' # Example with invalid input (sum of times exceeds duration)
-#' rr_data <- data.frame(time = 1:100)
+#' rr_data <- data.frame(time = rep(1, 100))
 #' session_data <- list(duration = 100)
 #' # This will throw an error
 #' result_error <- split_rr_phases(rr_data, session_data, 50, 60, 70)
@@ -60,7 +73,8 @@ split_rr_phases <- function(
   laying_time = 180,
   transition_time = 20,
   standing_time = 180,
-  centered_transition = TRUE
+  centered_transition = TRUE,
+  time_unit = c("milliseconds", "seconds")
 ) {
   if (length(rr_intervals) == 0) {
     return(rr_intervals)
@@ -135,11 +149,25 @@ split_rr_phases <- function(
     }
   }
 
-  rr_intervals$elapsed_time <- seq(
-    from = session_info$duration / nrow(rr_intervals),
-    to = session_info$duration,
-    by = session_info$duration / nrow(rr_intervals)
-  )
+  time_unit <- match.arg(time_unit)
+  unit_factor <- if (time_unit == "milliseconds") 1000 else 1
+
+  beat_duration <- sum(rr_intervals$time) / unit_factor
+  if (
+    is.finite(session_info$duration) &&
+      abs(beat_duration - session_info$duration) > 0.05 * session_info$duration
+  ) {
+    warning(sprintf(
+      paste0(
+        "Total beat time (%.1f s) deviates from session_info$duration ",
+        "(%.1f s) by more than 5%%. The beat-derived timeline is used."
+      ),
+      beat_duration,
+      session_info$duration
+    ))
+  }
+
+  rr_intervals$elapsed_time <- cumsum(rr_intervals$time) / unit_factor
 
   if (centered_transition) {
     rr_intervals <- rr_intervals %>%

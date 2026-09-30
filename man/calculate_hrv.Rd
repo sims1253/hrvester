@@ -7,12 +7,16 @@
 calculate_hrv(rr_intervals)
 }
 \arguments{
-\item{rr_intervals}{Numeric vector of RR intervals in seconds}
+\item{rr_intervals}{Numeric vector of RR intervals in milliseconds, the
+canonical unit used throughout the package (see \code{\link[=extract_rr_data]{extract_rr_data()}})}
 }
 \value{
 Named list containing:
 \item{rmssd}{Root Mean Square of Successive Differences (ms)}
 \item{sdnn}{Standard Deviation of NN intervals (ms)}
+
+The output is reported in the same unit as the input; both are
+milliseconds in the package pipeline.
 }
 \description{
 Calculates key heart rate variability metrics including RMSSD and SDNN

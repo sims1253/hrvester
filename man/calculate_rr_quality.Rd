@@ -47,6 +47,10 @@ Signal Quality Index components:
 \item HR stability (lower variability = better for some contexts)
 \item Measurement duration adequacy (minimum 5 minutes recommended)
 }
+
+An empty input vector, or one containing no finite values, is not
+assessable: the function returns grade \code{"F"} with \code{NA} quality scores so
+that the absence of data can never be mistaken for excellent quality.
 }
 \examples{
 \dontrun{

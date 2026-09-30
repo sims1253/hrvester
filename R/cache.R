@@ -27,6 +27,9 @@
 #'     \item standing_signal_quality_index (numeric): Signal quality index for standing phase
 #'     \item standing_data_completeness (numeric): Data completeness for standing phase
 #'     \item standing_quality_grade (character): Quality grade for standing phase (A/B/C/D/F)
+#'     \item file_digest (character): MD5 digest of the source file contents
+#'     \item config_id (character): Digest of the analysis configuration the
+#'       entry was produced with
 #'   }
 #' @export
 cache_definition <- function() {
@@ -57,7 +60,10 @@ cache_definition <- function() {
     standing_artifact_percentage = numeric(),
     standing_signal_quality_index = numeric(),
     standing_data_completeness = numeric(),
-    standing_quality_grade = character()
+    standing_quality_grade = character(),
+    # Provenance: entries are only reused when both digests match
+    file_digest = character(),
+    config_id = character()
   )
 }
 
@@ -167,30 +173,114 @@ safe_file_operation <- function(operation, ...) {
   )
 }
 
+#' Hash a string
+#'
+#' Internal helper producing a stable MD5 digest of a character string
+#' without requiring an external dependency.
+#'
+#' @param x Character string to hash
+#' @return Character string with the MD5 digest
+#' @keywords internal
+hash_string <- function(x) {
+  tmp <- tempfile()
+  on.exit(unlink(tmp))
+  writeLines(enc2utf8(x), tmp, useBytes = TRUE)
+  unname(tools::md5sum(tmp))
+}
+
+#' Compute the analysis configuration identity
+#'
+#' Internal helper summarizing the effective analysis configuration (protocol
+#' windows, filtering thresholds, correction method and package version) into
+#' a single digest. Cache entries are only reused when this identity matches,
+#' so changing any analysis argument invalidates the affected results.
+#'
+#' @param config Named list of configuration values
+#' @return Character string with the configuration digest
+#' @keywords internal
+compute_config_id <- function(config) {
+  config <- config[order(names(config))]
+  fields <- vapply(
+    names(config),
+    function(nm) {
+      paste0(nm, "=", paste(format(config[[nm]]), collapse = ","))
+    },
+    character(1)
+  )
+  hash_string(paste(fields, collapse = "|"))
+}
+
+#' Save the cache atomically
+#'
+#' Internal helper writing the cache to a temporary file in the destination
+#' directory and replacing the destination only after the write succeeded.
+#' A failed or interrupted write leaves the previous cache untouched.
+#'
+#' @param data Data frame to write
+#' @param cache_file Path of the cache file to replace
+#' @return Invisible TRUE, or an error if the cache could not be replaced
+#' @keywords internal
+save_cache_atomic <- function(data, cache_file) {
+  tmp <- tempfile(pattern = ".hrv-cache-", tmpdir = dirname(cache_file))
+  on.exit(if (file.exists(tmp)) unlink(tmp), add = TRUE)
+
+  readr::write_csv(data, tmp)
+
+  if (!file.rename(tmp, cache_file)) {
+    # Windows cannot rename over an existing destination; fall back to a
+    # backup swap that still restores the previous cache on failure
+    backup <- paste0(cache_file, ".bak")
+    if (!file.rename(cache_file, backup) || !file.rename(tmp, cache_file)) {
+      if (
+        file.exists(backup) &&
+          !file.exists(cache_file) &&
+          !file.rename(backup, cache_file)
+      ) {
+        stop("Failed to restore previous cache file: ", cache_file)
+      }
+      stop("Failed to replace cache file atomically: ", cache_file)
+    }
+    unlink(backup)
+  }
+
+  invisible(TRUE)
+}
+
 #' @keywords internal
 load_cache <- function(cache_file) {
   tryCatch(
     {
       # Get column types from cache_definition
       template <- cache_definition()
-      col_types <- readr::cols(.default = readr::col_guess())
 
-      # Explicitly set column types based on template
-      for (col_name in names(template)) {
-        col_types[[col_name]] <- switch(
-          class(template[[col_name]]),
-          "character" = readr::col_character(),
-          "numeric" = readr::col_double(),
-          readr::col_guess()
-        )
-      }
+      # Explicitly set column types based on template. The collectors must
+      # live inside the cols() specification so that, for example, an
+      # all-NA column round-trips as the declared type instead of being
+      # guessed into an incompatible one. Only columns present in the file
+      # get a collector so legacy files do not trigger parser warnings.
+      collectors <- lapply(
+        template,
+        function(col) {
+          if (is.character(col)) {
+            readr::col_character()
+          } else {
+            readr::col_double()
+          }
+        }
+      )
 
-      # First check if file is valid CSV
-      if (length(readLines(cache_file)) < 2) {
-        # Need at least header + one row
+      # First check if file has any content; a header-only file is a valid
+      # empty cache
+      if (length(readLines(cache_file)) < 1) {
         warning("Invalid cache file structure, creating new cache")
         return(cache_definition())
       }
+
+      header <- names(
+        readr::read_csv(cache_file, n_max = 0, show_col_types = FALSE)
+      )
+      collectors <- collectors[names(collectors) %in% header]
+      col_types <- do.call(readr::cols, collectors)
 
       # Attempt to read the file
       data <- readr::read_csv(
@@ -199,8 +289,18 @@ load_cache <- function(cache_file) {
         col_types = col_types
       )
 
+      # Backfill provenance columns missing in legacy caches so those rows
+      # are kept but flagged for reprocessing
+      for (col_name in setdiff(names(template), names(data))) {
+        data[[col_name]] <- if (is.character(template[[col_name]])) {
+          NA_character_
+        } else {
+          NA_real_
+        }
+      }
+
       # Check if we have all required columns
-      if (!setequal(names(cache_definition()), names(data))) {
+      if (!all(names(template) %in% names(data))) {
         warning("Cache file missing required columns, creating new cache")
         return(cache_definition())
       }

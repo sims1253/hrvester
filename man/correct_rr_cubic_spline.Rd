@@ -21,7 +21,8 @@ Default is 25\% following Kubios methodology}
 Default is TRUE}
 
 \item{max_correction_rate}{Maximum percentage of beats that can be corrected.
-Default is 5\% to avoid over-smoothing}
+Must be a single finite number between 0 and 100. Default is 5\% to avoid
+over-smoothing. A value of 0 disables correction entirely.}
 }
 \value{
 A list containing:
@@ -39,11 +40,16 @@ automation with accuracy.
 \details{
 This function implements the Kubios-style cubic spline correction:
 \itemize{
-\item Uses HR-adaptive thresholds (20-30\% or 0.20-0.30s ranges)
-\item Limits corrections to <5\% of beats to avoid over-smoothing
+\item Uses HR-adaptive thresholds (20-30\% or 200-300 ms deviation ranges)
+\item Limits corrections to at most \code{max_correction_rate} percent of beats
 \item Applies cubic spline interpolation using R's spline() function
 \item Automatically detects artifacts based on percentage deviation
 }
+
+In HR-adaptive mode the accepted range is the wider (less restrictive) of
+the percentage band around the median RR interval and the time-based band
+\code{median_rr - 200} to \code{median_rr + 300} ms. Both bounds are therefore
+relative to the median RR interval.
 
 The method balances automated detection with preservation of physiological
 variability, making it widely adopted in HRV research.

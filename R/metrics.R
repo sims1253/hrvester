@@ -3,10 +3,14 @@
 #' @description
 #' Calculates key heart rate variability metrics including RMSSD and SDNN
 #'
-#' @param rr_intervals Numeric vector of RR intervals in seconds
+#' @param rr_intervals Numeric vector of RR intervals in milliseconds, the
+#'   canonical unit used throughout the package (see [extract_rr_data()])
 #' @return Named list containing:
 #'   \item{rmssd}{Root Mean Square of Successive Differences (ms)}
 #'   \item{sdnn}{Standard Deviation of NN intervals (ms)}
+#'
+#'   The output is reported in the same unit as the input; both are
+#'   milliseconds in the package pipeline.
 #'
 #' @export
 calculate_hrv <- function(rr_intervals) {
@@ -195,25 +199,54 @@ calculate_resting_hr <- function(
 #' @description
 #' Computes various metrics related to heart rate recovery
 #'
-#' @param standing_hr Vector of heart rate values after standing
+#' @param standing_hr Vector of heart rate values after standing. Without
+#'   `times`, values are interpreted as one-per-second samples of the first
+#'   60 seconds after standing. With `times`, values may be irregularly
+#'   sampled and are selected by elapsed time.
 #' @param baseline_hr Resting heart rate before standing
+#' @param times Optional numeric vector of elapsed times (in seconds, from
+#'   the moment of standing) matching `standing_hr`. When supplied, the peak
+#'   is taken over the first 20 seconds and the 60-second value is the last
+#'   sample within 60 seconds, both by timestamp rather than by position.
 #' @return List containing recovery metrics:
 #'   \item{hrr_60s}{Absolute recovery in 60 seconds}
 #'   \item{hrr_relative}{Relative recovery percentage}
 #'   \item{orthostatic_rise}{Initial HR increase}
 #' @export
-calculate_hrr <- function(standing_hr, baseline_hr) {
-  if (length(standing_hr) < 60) {
-    return(list(
-      hrr_60s = NA_real_,
-      hrr_relative = NA_real_,
-      orthostatic_rise = NA_real_
-    ))
-  }
+calculate_hrr <- function(standing_hr, baseline_hr, times = NULL) {
+  if (is.null(times)) {
+    if (length(standing_hr) < 60) {
+      return(list(
+        hrr_60s = NA_real_,
+        hrr_relative = NA_real_,
+        orthostatic_rise = NA_real_
+      ))
+    }
 
-  # Calculate peak HR in first 20 seconds
-  hr_peak <- max(standing_hr[1:20], na.rm = TRUE)
-  hr_60s <- standing_hr[60]
+    # Calculate peak HR in first 20 seconds
+    hr_peak <- max(standing_hr[1:20], na.rm = TRUE)
+    hr_60s <- standing_hr[60]
+  } else {
+    # Require coverage close to the full 60 seconds (a [start, start + 60)
+    # window of 1 Hz samples ends at 59 s)
+    if (
+      length(standing_hr) < 2 ||
+        !is.numeric(times) ||
+        length(times) != length(standing_hr) ||
+        max(times) < 55
+    ) {
+      return(list(
+        hrr_60s = NA_real_,
+        hrr_relative = NA_real_,
+        orthostatic_rise = NA_real_
+      ))
+    }
+
+    hr_peak <- max(standing_hr[times <= 20], na.rm = TRUE)
+    # Last sample within the first 60 seconds
+    within_60 <- standing_hr[times <= 60]
+    hr_60s <- within_60[length(within_60)]
+  }
 
   # Calculate metrics
   hrr_60s <- hr_peak - hr_60s

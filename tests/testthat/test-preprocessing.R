@@ -439,11 +439,14 @@ test_that("correct_rr_cubic_spline detects and corrects artifacts", {
   # Use mostly normal data with extreme outliers to ensure detection
   rr_data <- c(800, 850, 830, 810, 820, 1500, 840) # position 6 is clear artifact
 
-  # Use non-adaptive mode with tighter threshold for more predictable detection
+  # Use non-adaptive mode with tighter threshold for more predictable
+  # detection; an explicit correction budget is required because floor(7*5%)
+  # would be zero for this short series
   result <- correct_rr_cubic_spline(
     rr_data,
     threshold_percent = 15,
-    hr_adaptive = FALSE
+    hr_adaptive = FALSE,
+    max_correction_rate = 15
   )
 
   expect_type(result, "list")
@@ -479,15 +482,18 @@ test_that("correct_rr_cubic_spline handles hr_adaptive mode", {
   fast_hr_data <- rep(600, 10) # Fast HR (~100 bpm)
   fast_hr_data[5] <- 150 # Extreme artifact that should be caught
 
+  # An explicit budget of 10% allows one correction of ten beats
   result_slow <- correct_rr_cubic_spline(
     slow_hr_data,
     hr_adaptive = TRUE,
-    threshold_percent = 20
+    threshold_percent = 20,
+    max_correction_rate = 10
   )
   result_fast <- correct_rr_cubic_spline(
     fast_hr_data,
     hr_adaptive = TRUE,
-    threshold_percent = 20
+    threshold_percent = 20,
+    max_correction_rate = 10
   )
 
   # Both should detect their respective artifacts
@@ -526,14 +532,19 @@ test_that("correct_rr_lipponen_tarvainen integrates with classification", {
   expect_type(result, "list")
   expect_named(
     result,
-    c("corrected_rr", "classifications", "corrections_applied", "rmssd_error")
+    c(
+      "corrected_rr",
+      "classifications",
+      "corrections_applied",
+      "relative_rmssd_change"
+    )
   )
 
-  # Function should compute RMSSD error (may be high with synthetic artifacts)
-  expect_true(is.finite(result$rmssd_error)) # Should be a valid number
+  # Function should compute the relative RMSSD change diagnostic
+  expect_true(is.finite(result$relative_rmssd_change))
 
   # Function should run without error
-  expect_true(is.numeric(result$rmssd_error))
+  expect_true(is.numeric(result$relative_rmssd_change))
   expect_true(result$corrections_applied >= 0)
 
   # Length may change due to inserted/removed beats
@@ -660,6 +671,12 @@ test_that("extract_rr_data integrates correction methods correctly", {
     result_linear <- extract_rr_data(mock_fit, correction_method = "linear")
     result_cubic <- extract_rr_data(mock_fit, correction_method = "cubic")
     result_lipponen <- extract_rr_data(mock_fit, correction_method = "lipponen")
+    # Explicit budget: floor(15 * 5%) is zero for this short series
+    result_cubic <- extract_rr_data(
+      mock_fit,
+      correction_method = "cubic",
+      max_correction_rate = 20
+    )
 
     # All should return tibbles with time column
     expect_true(is.data.frame(result_none))
@@ -1035,8 +1052,11 @@ test_that("correction methods produce different results on artifact data", {
   expect_length(linear_result, length(rr_with_artifacts))
   expect_false(identical(linear_result, rr_with_artifacts))
 
-  # Test cubic spline correction
-  cubic_result <- correct_rr_cubic_spline(rr_with_artifacts)
+  # Test cubic spline correction (explicit budget: floor(15 * 5%) is zero)
+  cubic_result <- correct_rr_cubic_spline(
+    rr_with_artifacts,
+    max_correction_rate = 20
+  )
   expect_true(is.list(cubic_result))
   expect_true("corrected_rr" %in% names(cubic_result))
   expect_length(cubic_result$corrected_rr, length(rr_with_artifacts))
@@ -1384,4 +1404,135 @@ test_that("extract_rr_data returns quality metrics alongside cleaned data", {
   expect_true(quality_metrics$signal_quality_index < 100) # Should be < 100 due to artifacts
   expect_true(quality_metrics$data_completeness < 100) # Should be < 100 due to artifacts
   expect_true(quality_metrics$quality_grade %in% c("A", "B", "C", "D", "F"))
+})
+
+# ============== Review regression tests (R05, R06, R15, R18, R20) ==============
+
+test_that("cubic lower threshold is relative to the median RR (R05)", {
+  # 400 ms at an 800 ms median is 50% below the median and must be detected
+  x <- c(rep(800, 10), 400, rep(800, 10))
+  out <- correct_rr_cubic_spline(x)
+  expect_equal(out$n_corrected, 1)
+  expect_true(out$artifact_mask[11])
+  expect_equal(out$corrected_rr[11], 800)
+
+  # Symmetric long outlier at a different median level
+  y <- c(rep(600, 12), 1300, rep(600, 12))
+  out_y <- correct_rr_cubic_spline(y)
+  expect_true(out_y$artifact_mask[13])
+
+  # hr_adaptive = FALSE keeps the pure percentage rule
+  out_pct <- correct_rr_cubic_spline(x, hr_adaptive = FALSE)
+  expect_true(out_pct$artifact_mask[11])
+})
+
+test_that("cubic correction budget of zero disables correction (R06)", {
+  x <- c(rep(800, 4), 1600, rep(800, 5))
+  # floor(10 * 5 / 100) == 0: no beat may be altered
+  out <- correct_rr_cubic_spline(x, max_correction_rate = 5)
+  expect_equal(out$n_corrected, 0)
+  expect_false(any(out$artifact_mask))
+  expect_identical(out$corrected_rr, x)
+
+  out_zero <- correct_rr_cubic_spline(x, max_correction_rate = 0)
+  expect_equal(out_zero$n_corrected, 0)
+  expect_identical(out_zero$corrected_rr, x)
+})
+
+test_that("cubic correction never exceeds the budget (R06)", {
+  # 21-beat series with three extreme artifacts: default budget is 1
+  x <- c(rep(800, 7), 200, rep(800, 3), 100, rep(800, 7), 2500)
+  out <- correct_rr_cubic_spline(x)
+  expect_true(out$n_corrected <= floor(length(x) * 5 / 100))
+
+  # Budget rounding boundary: 19 beats at 10% allow 1 correction
+  y <- c(rep(800, 9), 200, rep(800, 9))
+  out_y <- correct_rr_cubic_spline(y, max_correction_rate = 10)
+  expect_equal(out_y$n_corrected, 1)
+})
+
+test_that("cubic max_correction_rate validates its input (R06)", {
+  expect_error(
+    correct_rr_cubic_spline(c(800, 800, 800), max_correction_rate = -1),
+    "max_correction_rate must be a single finite value between 0 and 100"
+  )
+  expect_error(
+    correct_rr_cubic_spline(c(800, 800, 800), max_correction_rate = 101),
+    "max_correction_rate must be a single finite value between 0 and 100"
+  )
+  expect_error(
+    correct_rr_cubic_spline(c(800, 800, 800), max_correction_rate = NA),
+    "max_correction_rate must be a single finite value between 0 and 100"
+  )
+  expect_error(
+    correct_rr_cubic_spline(c(800, 800, 800), max_correction_rate = c(5, 10)),
+    "max_correction_rate must be a single finite value between 0 and 100"
+  )
+})
+
+test_that("centered artifact detection excludes only the current index (R15)", {
+  # Repeated neighbors: the reference mean must keep the equal values
+  valid <- detect_rr_artifacts(
+    c(800, 800, 800, 1200, 1200),
+    window_size = 5,
+    threshold = 0.25,
+    centered_window = TRUE
+  )
+  expect_true(valid[3])
+
+  # A constant plateau stays valid everywhere
+  plateau <- detect_rr_artifacts(
+    rep(900, 10),
+    window_size = 7,
+    threshold = 0.1,
+    centered_window = TRUE
+  )
+  expect_true(all(plateau))
+
+  # Boundary membership: centered window of 5 around index 1 uses indices 1-3
+  boundary <- detect_rr_artifacts(
+    c(500, 800, 800, 800, 800, 800, 800),
+    window_size = 5,
+    threshold = 0.2,
+    centered_window = TRUE
+  )
+  expect_false(boundary[1])
+  expect_true(all(boundary[2:7]))
+})
+
+test_that("calculate_rr_quality never grades empty or unusable data as excellent (R18)", {
+  expect_warning(
+    q_empty <- calculate_rr_quality(numeric(0), integer(0), list()),
+    "no usable RR intervals"
+  )
+  expect_equal(q_empty$quality_grade, "F")
+  expect_true(is.na(q_empty$signal_quality_index))
+  expect_true(is.na(q_empty$artifact_percentage))
+  expect_true(is.na(q_empty$data_completeness))
+
+  expect_warning(
+    q_na <- calculate_rr_quality(c(NA_real_, NA_real_), integer(0), list()),
+    "no usable RR intervals"
+  )
+  expect_equal(q_na$quality_grade, "F")
+
+  # Zero artifacts in real data is still distinguishable from no data
+  q_real <- calculate_rr_quality(rep(800, 100), integer(0), list())
+  expect_equal(q_real$quality_grade, "A")
+})
+
+test_that("relative_rmssd_change is a change diagnostic with a zero guard (R20)", {
+  # A perfectly restored constant series: input RMSSD 0 -> NA, not NaN
+  out <- correct_rr_lipponen_tarvainen(rep(800, 30))
+  expect_true(is.na(out$relative_rmssd_change) ||
+    is.finite(out$relative_rmssd_change))
+
+  # The diagnostic is relative to the uncorrected input: perfect correction
+  # of a corrupted series yields a large value, not zero
+  clean <- rep(800, 50)
+  corrupted <- clean
+  corrupted[25] <- 400
+  corrupted[26] <- 1200
+  out_corrupt <- correct_rr_lipponen_tarvainen(corrupted)
+  expect_true(out_corrupt$relative_rmssd_change > 0)
 })

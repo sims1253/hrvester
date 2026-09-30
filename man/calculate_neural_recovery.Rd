@@ -27,8 +27,12 @@ Dataframe with added columns:
 \item rmssd_score (numeric): Score based on RMSSD ratio (0-40 points)
 \item ortho_score (numeric): Score based on orthostatic response (0-30 points)
 \item hrr_score (numeric): Score based on heart rate recovery (0-30 points)
-\item neural_recovery_score (numeric): Combined total score (0-100)
-\item recovery_status (character): Classification based on total score
+\item neural_recovery_score (numeric): Combined total score (0-100);
+NA when any component cannot be computed (for example, no usable
+moving-average baseline yet, or a missing measurement)
+\item recovery_status (character): Classification based on total score;
+"Insufficient data" when the score is NA, so unknown recovery is
+never presented as poor recovery
 }
 }
 \description{
