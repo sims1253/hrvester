@@ -229,12 +229,14 @@ classify_hrv_artefacts_lipponen <- function(
 #' intervals and artefact classifications) and performs the actual artefact
 #' correction, including:
 #'
+#' *   **Removal:** Extra beats are removed first and their interval is
+#'     merged back into the preceding partner interval (the classifier flags
+#'     the second of the two short intervals a false beat produces), so the
+#'     total elapsed time of the recording is preserved and the false beat
+#'     never anchors the interpolation below.
 #' *   **Interpolation:** Ectopic, long, and short beats are corrected by
 #'     replacing the identified intervals with values obtained via cubic spline
 #'     interpolation.
-#' *   **Removal:** Extra beats are removed and their interval is merged into
-#'     the adjacent interval, so the total elapsed time of the recording is
-#'     preserved.
 #' *   **Insertion:**  Rows are inserted for missed beats, with the time
 #'      value set to half the duration of the long interval, preserving the
 #'      total elapsed time.
@@ -268,10 +270,36 @@ correct_hrv_artefacts_lipponen <- function(data) {
   }
   data$original_time <- data$time
   data$correction <- "none"
+
+  # --- 1. Remove Extra Beats ---
+  # A false beat splits one true interval into two short ones. The
+  # classifier flags the second of the pair as "extra", so its interval is
+  # merged back into the preceding (partner) interval, restoring the true
+  # interval and preserving elapsed time. Removal runs before interpolation
+  # so a false beat never anchors the spline.
+  extra_indices <- which(data$classification == "extra")
+  if (length(extra_indices) > 0) {
+    for (i in rev(extra_indices)) {
+      if (i > 1) {
+        data$time[i - 1] <- data$time[i - 1] + data$time[i]
+        data$classification[i - 1] <- "normal"
+        data$correction[i - 1] <- "merged"
+      } else if (i < nrow(data)) {
+        # Degenerate hand-supplied classification at the first row: merge
+        # forward because no partner precedes it
+        data$time[i + 1] <- data$time[i + 1] + data$time[i]
+        data$classification[i + 1] <- "normal"
+        data$correction[i + 1] <- "merged"
+      }
+      data <- data[-i, , drop = FALSE]
+    }
+  }
+
+  # --- 2. Interpolation (Ectopic, Long, Short) ---
+  # Re-sync after extra-beat removal changed the series
   rr <- data$time
   n <- length(rr)
 
-  # --- 1. Interpolation (Ectopic, Long, Short) ---
   interp_indices <- which(
     data$classification %in% c("ectopic", "long", "short")
   )
@@ -314,22 +342,6 @@ correct_hrv_artefacts_lipponen <- function(data) {
 
     data$time[interp_indices] <- rr_corrected[interp_indices]
     data$correction[interp_indices] <- "interpolated"
-  }
-
-  # --- 2. Remove Extra Beats ---
-  # A false beat splits one true interval into two short ones, so the
-  # interval of the extra beat is merged into the following interval (or the
-  # previous one at the end of the series) to preserve elapsed time.
-  extra_indices <- which(data$classification == "extra")
-  if (length(extra_indices) > 0) {
-    for (i in rev(extra_indices)) {
-      if (i < nrow(data)) {
-        data$time[i + 1] <- data$time[i + 1] + data$time[i]
-      } else if (i > 1) {
-        data$time[i - 1] <- data$time[i - 1] + data$time[i]
-      }
-      data <- data[-i, , drop = FALSE]
-    }
   }
 
   # --- 3. Insert Missed Beats ---
@@ -503,7 +515,9 @@ calculate_rmssd_orthostatic_enhanced <- function(
 
     rr_clean <- phase_data$time
     elapsed <- phase_data$cumulative_time
-    gap_threshold <- 1.5 * stats::median(rr_clean)
+    # Gap detection compares elapsed seconds, so convert the threshold from
+    # the input unit
+    gap_threshold <- 1.5 * stats::median(rr_clean) / unit_factor
 
     segment_indices <- c(
       1,

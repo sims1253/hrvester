@@ -164,9 +164,10 @@ analyze_readiness <- function(current_metrics, baseline_metrics) {
 #'   }
 #'
 #' @details When several measurements share the latest date, the first row
-#'   of that date (in input order) is reported. At least one usable baseline
-#'   day within the seven days before the current day is required; the
-#'   baseline does not need to be complete.
+#'   of that date (in input order) is reported. At least two usable baseline
+#'   days within the seven days before the current day are required (the
+#'   7-day trend needs two points); the baseline does not need to be
+#'   complete.
 #'
 #' @importFrom dplyr filter %>%
 #' @importFrom utils head tail
@@ -204,8 +205,15 @@ generate_daily_report <- function(data) {
       date >= current_day - 7
     )
 
-  if (!any(!is.na(baseline_metrics$laying_rmssd))) {
-    stop("No usable baseline measurements within 7 days before the current day")
+  # Both the 7-day trend and the baseline comparison need at least two
+  # usable days
+  if (
+    sum(!is.na(baseline_metrics$laying_rmssd)) < 2 ||
+      sum(!is.na(baseline_metrics$laying_resting_hr)) < 2
+  ) {
+    stop(
+      "At least two usable baseline measurements are required within 7 days before the current day"
+    )
   }
 
   # Get readiness analysis

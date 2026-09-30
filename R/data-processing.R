@@ -217,6 +217,50 @@ extract_session_data <- function(fit_object) {
   )
 }
 
+#' Names of the analysis arguments defining cache identity
+#'
+#' Internal helper listing the analysis arguments that make up the cache
+#' configuration identity. Both [process_fit_file()] and
+#' [process_fit_directory()] build their config digest from exactly these
+#' names, pinned in one place so the two cannot drift apart.
+#'
+#' @return Character vector of argument names
+#' @keywords internal
+hrv_analysis_config_args <- function() {
+  c(
+    "standing_time",
+    "transition_time",
+    "laying_time",
+    "min_rr",
+    "max_rr",
+    "window_size",
+    "threshold",
+    "centered_transition",
+    "centered_window",
+    "warmup",
+    "sport_name",
+    "min_quality_threshold",
+    "correction_method"
+  )
+}
+
+#' Compute the analysis configuration identity from a function frame
+#'
+#' Internal helper extracting the analysis arguments listed by
+#' [hrv_analysis_config_args()] from the calling frame and hashing them
+#' together with the package version.
+#'
+#' @param env Environment (usually `environment()` of the caller)
+#' @return Character string with the configuration digest
+#' @keywords internal
+compute_analysis_config_id <- function(env) {
+  config_args <- as.list(env)[hrv_analysis_config_args()]
+  config_args$package_version <- as.character(
+    utils::packageVersion("hrvester")
+  )
+  compute_config_id(config_args)
+}
+
 #' Process a single FIT file
 #'
 #' @description
@@ -304,22 +348,7 @@ process_fit_file <- function(
   # and content changes
   file_digest <- unname(tools::md5sum(file_path))
   if (is.null(config_id)) {
-    config_id <- compute_config_id(list(
-      standing_time = standing_time,
-      transition_time = transition_time,
-      laying_time = laying_time,
-      min_rr = min_rr,
-      max_rr = max_rr,
-      window_size = window_size,
-      threshold = threshold,
-      centered_transition = centered_transition,
-      centered_window = centered_window,
-      warmup = warmup,
-      sport_name = sport_name,
-      min_quality_threshold = min_quality_threshold,
-      correction_method = correction_method,
-      package_version = as.character(utils::packageVersion("hrvester"))
-    ))
+    config_id <- compute_analysis_config_id(environment())
   }
 
   fit_object <- read_fit_file(file_path = file_path)
@@ -730,22 +759,7 @@ process_fit_directory <- function(
 
   # Identity of the effective analysis configuration: cache entries are only
   # reusable when the configuration, package version and file contents match
-  config_id <- compute_config_id(list(
-    standing_time = standing_time,
-    transition_time = transition_time,
-    laying_time = laying_time,
-    min_rr = min_rr,
-    max_rr = max_rr,
-    window_size = window_size,
-    threshold = threshold,
-    centered_transition = centered_transition,
-    centered_window = centered_window,
-    warmup = warmup,
-    sport_name = sport_name,
-    min_quality_threshold = min_quality_threshold,
-    correction_method = correction_method,
-    package_version = as.character(utils::packageVersion("hrvester"))
-  ))
+  config_id <- compute_analysis_config_id(environment())
 
   # Find files to process
   new_files <- setdiff(fit_files, cached_data$source_file)

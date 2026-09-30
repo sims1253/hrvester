@@ -28,12 +28,14 @@ correction, including:
 }
 \details{
 \itemize{
+\item \strong{Removal:} Extra beats are removed first and their interval is
+merged back into the preceding partner interval (the classifier flags
+the second of the two short intervals a false beat produces), so the
+total elapsed time of the recording is preserved and the false beat
+never anchors the interpolation below.
 \item \strong{Interpolation:} Ectopic, long, and short beats are corrected by
 replacing the identified intervals with values obtained via cubic spline
 interpolation.
-\item \strong{Removal:} Extra beats are removed and their interval is merged into
-the adjacent interval, so the total elapsed time of the recording is
-preserved.
 \item \strong{Insertion:}  Rows are inserted for missed beats, with the time
 value set to half the duration of the long interval, preserving the
 total elapsed time.

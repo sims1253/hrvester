@@ -402,6 +402,39 @@ test_that("process_fit_file honors warmup for HR and RR analyses (R02)", {
   on.exit(unlink(temp_dir, recursive = TRUE))
   fit_file <- file.path(temp_dir, "test1.fit")
 
+  laying_segment_lengths <- NULL
+  real_rr_full_phase_processing <- hrvester::rr_full_phase_processing
+  record_laying <- function(rr_segment, ...) {
+    laying_segment_lengths <<- c(laying_segment_lengths, length(rr_segment))
+    real_rr_full_phase_processing(rr_segment, ...)
+  }
+
+  count_laying_beats <- function(warmup) {
+    laying_segment_lengths <<- NULL
+    with_mocked_bindings(
+      readFitFile = mock_fit_bindings$readFitFile,
+      hrv = mock_fit_bindings$hrv,
+      records = mock_fit_bindings$records,
+      getMessagesByType = mock_fit_bindings$getMessagesByType,
+      .package = "FITfileR",
+      with_mocked_bindings(
+        rr_full_phase_processing = record_laying,
+        .package = "hrvester",
+        process_fit_file(fit_file, sport_name = "Orthostatic", warmup = warmup)
+      )
+    )
+    # The first phase-processing call receives the laying beats
+    laying_segment_lengths[1]
+  }
+
+  # RR warmup: beats within the first warmup seconds are excluded from the
+  # laying phase, so fewer laying beats feed the HRV calculation
+  beats_warm0 <- count_laying_beats(0)
+  beats_warm100 <- count_laying_beats(100)
+  expect_gt(beats_warm0, beats_warm100)
+  # At 0.8 s beats, warmup = 100 s removes about 125 laying beats
+  expect_equal(beats_warm0 - beats_warm100, 125, tolerance = 5)
+
   with_mocked_bindings(
     readFitFile = mock_fit_bindings$readFitFile,
     hrv = mock_fit_bindings$hrv,
@@ -413,15 +446,6 @@ test_that("process_fit_file honors warmup for HR and RR analyses (R02)", {
       res_warm70 <- process_fit_file(fit_file, sport_name = "Orthostatic", warmup = 70)
       expect_equal(res_warm0$laying_resting_hr, 60)
       expect_equal(res_warm70$laying_resting_hr, 70)
-
-      # RR warmup: beats within the first warmup seconds are excluded from
-      # the laying phase, so fewer laying beats feed the HRV calculation
-      hrv_low <- default_hrv_data()
-      res_w <- process_fit_file(fit_file, sport_name = "Orthostatic", warmup = 0)
-      res_wo <- process_fit_file(fit_file, sport_name = "Orthostatic", warmup = 100)
-      # Both produce results; the exact beat counts differ by construction
-      expect_true(is.finite(res_w$laying_rmssd) || is.na(res_w$laying_rmssd))
-      expect_true(!identical(res_w$source_file, character(0)))
     }
   )
 })

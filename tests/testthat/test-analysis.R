@@ -365,7 +365,19 @@ test_that("generate_daily_report requires a usable baseline (R13)", {
     time_of_day = "Morning"
   )
   # Eight rows exist but no usable baseline day within the last 7 days
-  expect_error(generate_daily_report(d), "No usable baseline")
+  expect_error(
+    generate_daily_report(d),
+    "At least two usable baseline measurements are required"
+  )
+
+  # A single usable baseline day also fails: the 7-day trend needs two
+  # points
+  d2 <- d
+  d2$laying_rmssd[2] <- 50
+  expect_error(
+    generate_daily_report(d2),
+    "At least two usable baseline measurements are required"
+  )
 })
 
 test_that("calculate_neural_recovery reports insufficient data instead of Low (R16)", {

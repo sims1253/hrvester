@@ -228,12 +228,14 @@ calculate_hrr <- function(standing_hr, baseline_hr, times = NULL) {
     hr_60s <- standing_hr[60]
   } else {
     # Require coverage close to the full 60 seconds (a [start, start + 60)
-    # window of 1 Hz samples ends at 59 s)
+    # window of 1 Hz samples ends at 59 s) and at least one sample in the
+    # peak window, so max() can never return -Inf
     if (
       length(standing_hr) < 2 ||
         !is.numeric(times) ||
         length(times) != length(standing_hr) ||
-        max(times) < 55
+        max(times) < 55 ||
+        !any(times <= 20)
     ) {
       return(list(
         hrr_60s = NA_real_,

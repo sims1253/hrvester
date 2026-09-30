@@ -35,7 +35,8 @@ recommendations.
 }
 \details{
 When several measurements share the latest date, the first row
-of that date (in input order) is reported. At least one usable baseline
-day within the seven days before the current day is required; the
-baseline does not need to be complete.
+of that date (in input order) is reported. At least two usable baseline
+days within the seven days before the current day are required (the
+7-day trend needs two points); the baseline does not need to be
+complete.
 }

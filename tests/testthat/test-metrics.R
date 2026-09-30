@@ -152,4 +152,13 @@ test_that("calculate_hrr selects peak and 60 s values by timestamp (R08/R02)", {
   # Insufficient time coverage returns NA explicitly
   res_short <- calculate_hrr(hr[1:10], baseline_hr = 60, times = times[1:10])
   expect_true(is.na(res_short$hrr_60s))
+
+  # No sample in the first 20 s: NA, never -Inf
+  res_no_peak <- calculate_hrr(
+    c(rep(80, 40)),
+    baseline_hr = 60,
+    times = 25:64
+  )
+  expect_true(is.na(res_no_peak$hrr_60s))
+  expect_true(is.na(res_no_peak$orthostatic_rise))
 })

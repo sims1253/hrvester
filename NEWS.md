@@ -32,9 +32,11 @@ behavior was incorrect.
 * A cubic correction budget of zero now disables correction entirely
   (previously `1:0` indexing still corrected one beat), and
   `max_correction_rate` is validated as a single finite percentage.
-* `correct_hrv_artefacts_lipponen()` merges the split interval when removing
-  an extra beat and uses a zero-length-safe prefix when inserting missed
-  beats, preserving the recording's elapsed duration.
+* `correct_hrv_artefacts_lipponen()` removes extra beats before
+  interpolation and merges the flagged interval back into its preceding
+  partner interval (the classifier flags the second of the two short
+  intervals a false beat produces), and uses a zero-length-safe prefix when
+  inserting missed beats, preserving the recording's elapsed duration.
 * `calculate_hrv_rmssd()` computes RMSSD from the successfully corrected
   beats (including interpolated ones) instead of dropping them.
 * `detect_rr_artifacts()` centered windows exclude only the current index,
