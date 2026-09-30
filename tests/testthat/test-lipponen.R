@@ -333,10 +333,13 @@ test_that("segments split on gaps identically in seconds and milliseconds (R08)"
       rep(800, 150) * scale
     ))
   }
+  # initial_stabilization_time = 50 s (62.5 beats) keeps the boundary off
+  # beat ends, avoiding the platform float wobble of exact boundaries
   r_ms <- calculate_rmssd_orthostatic_enhanced(
     make_series(1),
     time_unit = "milliseconds",
     transition_exclusion_time = 0,
+    initial_stabilization_time = 50,
     min_segment_length = 10,
     min_segment_beats = 10
   )
@@ -344,6 +347,7 @@ test_that("segments split on gaps identically in seconds and milliseconds (R08)"
     make_series(1 / 1000),
     time_unit = "seconds",
     transition_exclusion_time = 0,
+    initial_stabilization_time = 50,
     min_segment_length = 10,
     min_segment_beats = 10
   )

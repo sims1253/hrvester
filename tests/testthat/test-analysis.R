@@ -448,3 +448,30 @@ test_that("analyze_readiness flags missing baselines explicitly (R16)", {
   result_na <- analyze_readiness(current, baseline_na)
   expect_equal(result_na$status, "INSUFFICIENT_DATA")
 })
+
+test_that("generate_daily_report gate matches the trend input with duplicate days (R13)", {
+  # Two rows per date (Morning/Evening): the last 7 rows can carry fewer
+  # usable values than the window as a whole (analyze_readiness warns about
+  # the 14-row baseline, which is expected here)
+  mk <- function(rmssd) data.frame(
+    date = rep(as.character(as.Date("2026-01-01") + 0:7), each = 2),
+    laying_rmssd = rmssd,
+    laying_resting_hr = 60,
+    orthostatic_rise = 20,
+    standing_hr = 80,
+    hrr_60s = 25,
+    time_of_day = rep(c("Morning", "Evening"), 8)
+  )
+
+  # Exactly one usable baseline value overall: the gate must reject
+  d <- mk(c(50, rep(NA_real_, 13), 55, NA))
+  expect_error(
+    suppressWarnings(generate_daily_report(d)),
+    "At least two usable baseline measurements are required"
+  )
+
+  # Two usable values early in the window: a naive tail(7) would hold none,
+  # the NA-trimmed gate accepts
+  d2 <- mk(c(50, 52, rep(NA_real_, 12), 55, NA))
+  expect_no_error(suppressWarnings(generate_daily_report(d2)))
+})

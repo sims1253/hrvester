@@ -205,12 +205,15 @@ generate_daily_report <- function(data) {
       date >= current_day - 7
     )
 
-  # Both the 7-day trend and the baseline comparison need at least two
-  # usable days
-  if (
-    sum(!is.na(baseline_metrics$laying_rmssd)) < 2 ||
-      sum(!is.na(baseline_metrics$laying_resting_hr)) < 2
-  ) {
+  # The trends below consume the last seven usable values; gate on exactly
+  # those (same-day duplicates mean the last 7 rows may differ from the
+  # window as a whole)
+  rmssd_trend_values <- tail(stats::na.omit(baseline_metrics$laying_rmssd), 7)
+  resting_trend_values <- tail(
+    stats::na.omit(baseline_metrics$laying_resting_hr),
+    7
+  )
+  if (length(rmssd_trend_values) < 2 || length(resting_trend_values) < 2) {
     stop(
       "At least two usable baseline measurements are required within 7 days before the current day"
     )
@@ -256,8 +259,8 @@ generate_daily_report <- function(data) {
     if (isTRUE(readiness$flags$high_fatigue)) "\n- High Fatigue Detected" else "",
     if (isTRUE(readiness$flags$poor_recovery)) "\n- Poor Recovery Response" else "",
     if (isTRUE(readiness$flags$overreaching_risk)) "\n- Risk of Overreaching" else "",
-    calculate_trend_direction(tail(baseline_metrics$laying_rmssd, 7)),
-    calculate_trend_direction(tail(baseline_metrics$laying_resting_hr, 7))
+    calculate_trend_direction(rmssd_trend_values),
+    calculate_trend_direction(resting_trend_values)
   )
 
   return(report)
