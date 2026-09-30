@@ -64,7 +64,7 @@
 <code><a href="../reference/correct_rr_cubic_spline.html">correct_rr_cubic_spline()</a></code> computes the adaptive lower threshold relative to the median RR interval (<code>median_rr - 200</code> ms) instead of treating 200 ms as an absolute RR value, so substantially shortened but plausible intervals are detected.</li>
 <li>A cubic correction budget of zero now disables correction entirely (previously <code>1:0</code> indexing still corrected one beat), and <code>max_correction_rate</code> is validated as a single finite percentage.</li>
 <li>
-<code><a href="../reference/correct_hrv_artefacts_lipponen.html">correct_hrv_artefacts_lipponen()</a></code> merges the split interval when removing an extra beat and uses a zero-length-safe prefix when inserting missed beats, preserving the recording’s elapsed duration.</li>
+<code><a href="../reference/correct_hrv_artefacts_lipponen.html">correct_hrv_artefacts_lipponen()</a></code> removes extra beats before interpolation and merges the flagged interval back into its preceding partner interval (the classifier flags the second of the two short intervals a false beat produces), and uses a zero-length-safe prefix when inserting missed beats, preserving the recording’s elapsed duration.</li>
 <li>
 <code><a href="../reference/calculate_hrv_rmssd.html">calculate_hrv_rmssd()</a></code> computes RMSSD from the successfully corrected beats (including interpolated ones) instead of dropping them.</li>
 <li>

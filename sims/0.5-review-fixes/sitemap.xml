@@ -19,6 +19,7 @@
 <url><loc>/reference/calculate_rr_quality.html</loc></url>
 <url><loc>/reference/calculate_trend_direction.html</loc></url>
 <url><loc>/reference/classify_hrv_artefacts_lipponen.html</loc></url>
+<url><loc>/reference/compute_analysis_config_id.html</loc></url>
 <url><loc>/reference/compute_config_id.html</loc></url>
 <url><loc>/reference/correct_hrv_artefacts_lipponen.html</loc></url>
 <url><loc>/reference/correct_rr_cubic_spline.html</loc></url>
@@ -34,6 +35,7 @@
 <url><loc>/reference/get_HR.html</loc></url>
 <url><loc>/reference/get_hr_records.html</loc></url>
 <url><loc>/reference/hash_string.html</loc></url>
+<url><loc>/reference/hrv_analysis_config_args.html</loc></url>
 <url><loc>/reference/hrv_plot.html</loc></url>
 <url><loc>/reference/hrv_trend_plot.html</loc></url>
 <url><loc>/reference/hrvester-package.html</loc></url>
